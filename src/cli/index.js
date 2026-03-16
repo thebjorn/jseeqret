@@ -17,13 +17,21 @@ import { whoami_command } from './commands/whoami.js'
 import { keys_command } from './commands/keys.js'
 import { upgrade_command } from './commands/upgrade.js'
 import { info_command } from './commands/info.js'
+import { backup_command } from './commands/backup.js'
+import { export_command } from './commands/export.js'
+import { load_command } from './commands/load.js'
+import { env_command } from './commands/env.js'
+import { importenv_command } from './commands/importenv.js'
+import { setenv_command } from './commands/setenv.js'
+import { serializers_command } from './commands/serializers.js'
+import { introduction_command } from './commands/introduction.js'
 
 const program = new Command()
 
 program
     .name('jseeqret')
     .description('Secure secrets manager (JS port of seeqret)')
-    .version('0.1.0')
+    .version('0.5.1')
 
 program.addCommand(init_command)
 program.addCommand(list_command)
@@ -37,5 +45,13 @@ program.addCommand(whoami_command)
 program.addCommand(keys_command)
 program.addCommand(upgrade_command)
 program.addCommand(info_command)
+program.addCommand(backup_command)
+program.addCommand(export_command)
+program.addCommand(load_command)
+program.addCommand(env_command)
+program.addCommand(importenv_command)
+program.addCommand(setenv_command)
+program.addCommand(serializers_command)
+program.addCommand(introduction_command)
 
 program.parse()

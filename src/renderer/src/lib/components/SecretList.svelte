@@ -4,6 +4,13 @@
   let error = $state(null)
   let revealedKeys = $state(new Set())
 
+  // Sorting state
+  let sortColumn = $state(null)
+  let sortDirection = $state('asc')
+
+  // Column filter state
+  let columnFilters = $state({ app: '', env: '', key: '', value: '', type: '' })
+
   async function loadSecrets() {
     try {
       error = null
@@ -41,6 +48,54 @@
     return '***'
   }
 
+  function handleSort(column) {
+    if (sortColumn === column) {
+      sortDirection = sortDirection === 'asc' ? 'desc' : 'asc'
+    } else {
+      sortColumn = column
+      sortDirection = 'asc'
+    }
+  }
+
+  function sortIndicator(column) {
+    if (sortColumn !== column) return ''
+    return sortDirection === 'asc' ? ' \u25B2' : ' \u25BC'
+  }
+
+  let filteredSecrets = $derived.by(() => {
+    let result = secrets
+
+    // Apply column filters
+    if (columnFilters.app) {
+      const f = columnFilters.app.toLowerCase()
+      result = result.filter(s => s.app.toLowerCase().includes(f))
+    }
+    if (columnFilters.env) {
+      const f = columnFilters.env.toLowerCase()
+      result = result.filter(s => s.env.toLowerCase().includes(f))
+    }
+    if (columnFilters.key) {
+      const f = columnFilters.key.toLowerCase()
+      result = result.filter(s => s.key.toLowerCase().includes(f))
+    }
+    if (columnFilters.type) {
+      const f = columnFilters.type.toLowerCase()
+      result = result.filter(s => s.type.toLowerCase().includes(f))
+    }
+
+    // Apply sorting
+    if (sortColumn) {
+      result = [...result].sort((a, b) => {
+        const va = String(a[sortColumn] ?? '').toLowerCase()
+        const vb = String(b[sortColumn] ?? '').toLowerCase()
+        const cmp = va < vb ? -1 : va > vb ? 1 : 0
+        return sortDirection === 'asc' ? cmp : -cmp
+      })
+    }
+
+    return result
+  })
+
   $effect(() => {
     loadSecrets()
   })
@@ -55,17 +110,25 @@
 {:else}
   <table>
     <thead>
-      <tr>
-        <th>App</th>
-        <th>Env</th>
-        <th>Key</th>
+      <tr class="header-row">
+        <th class="sortable" onclick={() => handleSort('app')}>App{sortIndicator('app')}</th>
+        <th class="sortable" onclick={() => handleSort('env')}>Env{sortIndicator('env')}</th>
+        <th class="sortable" onclick={() => handleSort('key')}>Key{sortIndicator('key')}</th>
         <th>Value</th>
-        <th>Type</th>
+        <th class="sortable" onclick={() => handleSort('type')}>Type{sortIndicator('type')}</th>
+        <th></th>
+      </tr>
+      <tr class="filter-row">
+        <th><input type="text" bind:value={columnFilters.app} placeholder="filter..." class="col-filter" /></th>
+        <th><input type="text" bind:value={columnFilters.env} placeholder="filter..." class="col-filter" /></th>
+        <th><input type="text" bind:value={columnFilters.key} placeholder="filter..." class="col-filter" /></th>
+        <th></th>
+        <th><input type="text" bind:value={columnFilters.type} placeholder="filter..." class="col-filter" /></th>
         <th></th>
       </tr>
     </thead>
     <tbody>
-      {#each secrets as secret, i}
+      {#each filteredSecrets as secret, i}
         <tr>
           <td>{secret.app}</td>
           <td>{secret.env}</td>
@@ -83,8 +146,16 @@
           </td>
         </tr>
       {/each}
+      {#if filteredSecrets.length === 0 && secrets.length > 0}
+        <tr>
+          <td colspan="6" class="empty-filtered">No secrets match the column filters.</td>
+        </tr>
+      {/if}
     </tbody>
   </table>
+  <div class="table-footer">
+    {filteredSecrets.length} of {secrets.length} secret(s)
+  </div>
 {/if}
 
 <style>
@@ -123,6 +194,49 @@
   .delete:hover {
     background: var(--accent);
     color: white;
+  }
+
+  .sortable {
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .sortable:hover {
+    color: var(--text);
+  }
+
+  .filter-row th {
+    padding: 4px 6px;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .col-filter {
+    width: 100%;
+    padding: 4px 8px !important;
+    font-size: 12px !important;
+    background: var(--bg) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 4px !important;
+    color: var(--text) !important;
+  }
+
+  .col-filter::placeholder {
+    color: var(--text-muted);
+    opacity: 0.5;
+  }
+
+  .empty-filtered {
+    text-align: center;
+    color: var(--text-muted);
+    padding: 20px !important;
+  }
+
+  .table-footer {
+    text-align: right;
+    font-size: 12px;
+    color: var(--text-muted);
+    padding: 8px 12px;
   }
 
   .error {
