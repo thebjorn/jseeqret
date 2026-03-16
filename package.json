@@ -11,6 +11,11 @@
   "bin": {
     "jseeqret": "./src/cli/index.js"
   },
+  "files": [
+    "src/core",
+    "src/cli",
+    "README.md"
+  ],
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
