@@ -1,0 +1,15 @@
+{
+  "source": {
+    "include": ["src/core", "src/cli"],
+    "includePattern": ".+\\.js$"
+  },
+  "opts": {
+    "destination": "docs",
+    "recurse": true
+  },
+  "plugins": ["plugins/markdown"],
+  "templates": {
+    "cleverLinks": true,
+    "monospaceLinks": false
+  }
+}

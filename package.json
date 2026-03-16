@@ -19,7 +19,8 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
-    "bench": "node bench/get-benchmark.js"
+    "bench": "node bench/get-benchmark.js",
+    "docs": "jsdoc -c jsdoc.config.json"
   },
   "dependencies": {
     "cli-table3": "^0.6.5",
@@ -35,6 +36,7 @@
     "@vitest/coverage-v8": "^4.1.0",
     "electron": "^31.0.0",
     "electron-vite": "^2.3.0",
+    "jsdoc": "^4.0.5",
     "svelte": "^5.0.0",
     "vite": "^5.4.0",
     "vitest": "^4.1.0"

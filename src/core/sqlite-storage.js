@@ -9,10 +9,10 @@
 import initSqlJs from 'sql.js'
 import fs from 'fs'
 import path from 'path'
-import { getSeeqretDir } from './vault.js'
+import { get_seeqret_dir } from './vault.js'
 import { Secret } from './models/secret.js'
 import { User } from './models/user.js'
-import { globToSql, hasGlobChars } from './filter.js'
+import { glob_to_sql, has_glob_chars } from './filter.js'
 
 let SQL = null
 
@@ -20,235 +20,251 @@ let SQL = null
  * Initialize the sql.js WASM module (cached after first call).
  */
 async function getSQL() {
-  if (!SQL) {
-    SQL = await initSqlJs()
-  }
-  return SQL
+    if (!SQL) {
+        SQL = await initSqlJs()
+    }
+    return SQL
 }
 
 export class SqliteStorage {
-  /**
-   * @param {string} [fname='seeqrets.db']
-   * @param {string} [vaultDir] - override vault directory
-   */
-  constructor(fname = 'seeqrets.db', vaultDir = null) {
-    this.fname = fname
-    this._vaultDir = vaultDir
-  }
-
-  get vaultDir() {
-    return this._vaultDir || getSeeqretDir()
-  }
-
-  get dbPath() {
-    return path.join(this.vaultDir, this.fname)
-  }
-
-  /**
-   * Open the database, run a callback, and save if modified.
-   * @param {function} fn - receives the sql.js Database instance
-   * @param {boolean} [write=false] - whether to save changes back to disk
-   * @returns {any} return value of fn
-   */
-  async _withDb(fn, write = false) {
-    const SQL = await getSQL()
-    let db
-    if (fs.existsSync(this.dbPath)) {
-      const fileBuffer = fs.readFileSync(this.dbPath)
-      db = new SQL.Database(fileBuffer)
-    } else {
-      db = new SQL.Database()
-    }
-    try {
-      const result = fn(db)
-      if (write) {
-        const data = db.export()
-        fs.writeFileSync(this.dbPath, Buffer.from(data))
-      }
-      return result
-    } finally {
-      db.close()
-    }
-  }
-
-  /**
-   * Build a WHERE field clause with parameter.
-   */
-  _whereField(field, value) {
-    if (hasGlobChars(value)) {
-      return { clause: `${field} LIKE ?`, params: [globToSql(value)] }
-    }
-    return { clause: `${field} = ?`, params: [value] }
-  }
-
-  /**
-   * Build an OR clause for comma-separated values.
-   */
-  _whereFieldOr(field, values) {
-    const clauses = []
-    const params = []
-    for (const v of values) {
-      if (v === '*') {
-        clauses.push(`${field} = ?`)
-        params.push(v)
-      } else {
-        const { clause, params: p } = this._whereField(field, v)
-        clauses.push(clause)
-        params.push(...p)
-      }
-    }
-    return { clause: `(${clauses.join(' OR ')})`, params }
-  }
-
-  /**
-   * Build a full WHERE clause from a filter dict.
-   */
-  _whereClause(filters) {
-    if (!filters || Object.keys(filters).length === 0) {
-      return { clause: '', params: [] }
+    /**
+     * @param {string} [fname='seeqrets.db']
+     * @param {string} [vault_dir] - override vault directory
+     */
+    constructor(fname = 'seeqrets.db', vault_dir = null) {
+        this.fname = fname
+        this._vault_dir = vault_dir
     }
 
-    const clauses = []
-    const params = []
-
-    for (const [k, v] of Object.entries(filters)) {
-      if (v.includes(',')) {
-        const { clause, params: p } = this._whereFieldOr(k, v.split(','))
-        clauses.push(clause)
-        params.push(...p)
-      } else {
-        const { clause, params: p } = this._whereField(k, v)
-        clauses.push(clause)
-        params.push(...p)
-      }
+    get vault_dir() {
+        return this._vault_dir || get_seeqret_dir()
     }
 
-    return {
-      clause: ' WHERE ' + clauses.join(' AND '),
-      params,
+    get db_path() {
+        return path.join(this.vault_dir, this.fname)
     }
-  }
 
-  /**
-   * Execute a query and return rows as objects.
-   */
-  _queryRows(db, sql, params = []) {
-    const stmt = db.prepare(sql)
-    stmt.bind(params)
-    const rows = []
-    while (stmt.step()) {
-      rows.push(stmt.getAsObject())
+    /**
+     * Open the database, run a callback, and save if modified.
+     * @param {function} fn - receives the sql.js Database instance
+     * @param {boolean} [write=false] - whether to save changes back to disk
+     * @returns {any} return value of fn
+     */
+    async _with_db(fn, write = false) {
+        const SQL = await getSQL()
+        let db
+
+        if (fs.existsSync(this.db_path)) {
+            const file_buffer = fs.readFileSync(this.db_path)
+            db = new SQL.Database(file_buffer)
+        } else {
+            db = new SQL.Database()
+        }
+
+        try {
+            const result = fn(db)
+
+            if (write) {
+                const data = db.export()
+                fs.writeFileSync(this.db_path, Buffer.from(data))
+            }
+
+            return result
+        } finally {
+            db.close()
+        }
     }
-    stmt.free()
-    return rows
-  }
 
-  /**
-   * Execute a SQL query with filters.
-   */
-  async executeSql(sql, filters = {}) {
-    return this._withDb((db) => {
-      let orderBy = ''
-      if (Array.isArray(sql)) {
-        ;[sql, orderBy] = sql
-      }
-      const { clause, params } = this._whereClause(filters)
-      const fullSql = sql + clause + orderBy
-      return this._queryRows(db, fullSql, params)
-    })
-  }
+    /**
+     * Build a WHERE field clause with parameter.
+     */
+    _where_field(field, value) {
+        if (has_glob_chars(value)) {
+            return { clause: `${field} LIKE ?`, params: [glob_to_sql(value)] }
+        }
+        return { clause: `${field} = ?`, params: [value] }
+    }
 
-  /**
-   * Execute a write SQL statement with filters.
-   */
-  async executeWriteSql(sql, filters = {}) {
-    return this._withDb((db) => {
-      let orderBy = ''
-      if (Array.isArray(sql)) {
-        ;[sql, orderBy] = sql
-      }
-      const { clause, params } = this._whereClause(filters)
-      const fullSql = sql + clause + orderBy
-      db.run(fullSql, params)
-    }, true)
-  }
+    /**
+     * Build an OR clause for comma-separated values.
+     */
+    _where_field_or(field, values) {
+        const clauses = []
+        const params = []
 
-  // ---- User operations ----
+        for (const v of values) {
+            if (v === '*') {
+                clauses.push(`${field} = ?`)
+                params.push(v)
+            } else {
+                const { clause, params: p } = this._where_field(field, v)
+                clauses.push(clause)
+                params.push(...p)
+            }
+        }
 
-  async addUser(user) {
-    return this._withDb((db) => {
-      db.run(
-        'INSERT INTO users (username, email, pubkey) VALUES (?, ?, ?)',
-        [user.username, user.email, user.pubkey]
-      )
-    }, true)
-  }
+        return { clause: `(${clauses.join(' OR ')})`, params }
+    }
 
-  async fetchUser(username) {
-    return this._withDb((db) => {
-      const rows = this._queryRows(
-        db,
-        'SELECT username, email, pubkey FROM users WHERE username = ?',
-        [username]
-      )
-      return rows.length > 0 ? new User(rows[0].username, rows[0].email, rows[0].pubkey) : null
-    })
-  }
+    /**
+     * Build a full WHERE clause from a filter dict.
+     */
+    _where_clause(filters) {
+        if (!filters || Object.keys(filters).length === 0) {
+            return { clause: '', params: [] }
+        }
 
-  async fetchUsers(filters = {}) {
-    const rows = await this.executeSql(
-      ['SELECT username, email, pubkey FROM users', ' ORDER BY username'],
-      filters
-    )
-    return rows.map(r => new User(r.username, r.email, r.pubkey))
-  }
+        const clauses = []
+        const params = []
 
-  async fetchAdmin() {
-    return this._withDb((db) => {
-      const rows = this._queryRows(
-        db,
-        'SELECT username, email, pubkey FROM users WHERE id = 1'
-      )
-      return rows.length > 0 ? new User(rows[0].username, rows[0].email, rows[0].pubkey) : null
-    })
-  }
+        for (const [k, v] of Object.entries(filters)) {
+            if (v.includes(',')) {
+                const { clause, params: p } = this._where_field_or(k, v.split(','))
+                clauses.push(clause)
+                params.push(...p)
+            } else {
+                const { clause, params: p } = this._where_field(k, v)
+                clauses.push(clause)
+                params.push(...p)
+            }
+        }
 
-  // ---- Secret operations ----
+        return {
+            clause: ' WHERE ' + clauses.join(' AND '),
+            params,
+        }
+    }
 
-  async addSecret(secret) {
-    return this._withDb((db) => {
-      db.run(
-        'INSERT INTO secrets (app, env, key, value, type) VALUES (?, ?, ?, ?, ?)',
-        [secret.app, secret.env, secret.key, secret.encryptedValue, secret.type]
-      )
-    }, true)
-  }
+    /**
+     * Execute a query and return rows as objects.
+     */
+    _query_rows(db, sql, params = []) {
+        const stmt = db.prepare(sql)
+        stmt.bind(params)
 
-  async updateSecret(secret) {
-    return this._withDb((db) => {
-      db.run(
-        'UPDATE secrets SET value = ? WHERE app = ? AND env = ? AND key = ?',
-        [secret.encryptedValue, secret.app, secret.env, secret.key]
-      )
-    }, true)
-  }
+        const rows = []
+        while (stmt.step()) {
+            rows.push(stmt.getAsObject())
+        }
 
-  async fetchSecrets(filters = {}) {
-    const rows = await this.executeSql(
-      'SELECT app, env, key, value, type FROM secrets',
-      filters
-    )
-    return rows.map(r => new Secret({
-      app: r.app,
-      env: r.env,
-      key: r.key,
-      value: r.value,
-      type: r.type,
-      vaultDir: this.vaultDir,
-    }))
-  }
+        stmt.free()
+        return rows
+    }
 
-  async removeSecrets(filters) {
-    return this.executeWriteSql('DELETE FROM secrets', filters)
-  }
+    /**
+     * Execute a SQL query with filters.
+     */
+    async execute_sql(sql, filters = {}) {
+        return this._with_db((db) => {
+            let order_by = ''
+
+            if (Array.isArray(sql)) {
+                ;[sql, order_by] = sql
+            }
+
+            const { clause, params } = this._where_clause(filters)
+            const full_sql = sql + clause + order_by
+            return this._query_rows(db, full_sql, params)
+        })
+    }
+
+    /**
+     * Execute a write SQL statement with filters.
+     */
+    async execute_write_sql(sql, filters = {}) {
+        return this._with_db((db) => {
+            let order_by = ''
+
+            if (Array.isArray(sql)) {
+                ;[sql, order_by] = sql
+            }
+
+            const { clause, params } = this._where_clause(filters)
+            const full_sql = sql + clause + order_by
+            db.run(full_sql, params)
+        }, true)
+    }
+
+    // ---- User operations ----
+
+    async add_user(user) {
+        return this._with_db((db) => {
+            db.run(
+                'INSERT INTO users (username, email, pubkey) VALUES (?, ?, ?)',
+                [user.username, user.email, user.pubkey]
+            )
+        }, true)
+    }
+
+    async fetch_user(username) {
+        return this._with_db((db) => {
+            const rows = this._query_rows(
+                db,
+                'SELECT username, email, pubkey FROM users WHERE username = ?',
+                [username]
+            )
+            return rows.length > 0
+                ? new User(rows[0].username, rows[0].email, rows[0].pubkey)
+                : null
+        })
+    }
+
+    async fetch_users(filters = {}) {
+        const rows = await this.execute_sql(
+            ['SELECT username, email, pubkey FROM users', ' ORDER BY username'],
+            filters
+        )
+        return rows.map(r => new User(r.username, r.email, r.pubkey))
+    }
+
+    async fetch_admin() {
+        return this._with_db((db) => {
+            const rows = this._query_rows(
+                db,
+                'SELECT username, email, pubkey FROM users WHERE id = 1'
+            )
+            return rows.length > 0
+                ? new User(rows[0].username, rows[0].email, rows[0].pubkey)
+                : null
+        })
+    }
+
+    // ---- Secret operations ----
+
+    async add_secret(secret) {
+        return this._with_db((db) => {
+            db.run(
+                'INSERT INTO secrets (app, env, key, value, type) VALUES (?, ?, ?, ?, ?)',
+                [secret.app, secret.env, secret.key, secret.encrypted_value, secret.type]
+            )
+        }, true)
+    }
+
+    async update_secret(secret) {
+        return this._with_db((db) => {
+            db.run(
+                'UPDATE secrets SET value = ? WHERE app = ? AND env = ? AND key = ?',
+                [secret.encrypted_value, secret.app, secret.env, secret.key]
+            )
+        }, true)
+    }
+
+    async fetch_secrets(filters = {}) {
+        const rows = await this.execute_sql(
+            'SELECT app, env, key, value, type FROM secrets',
+            filters
+        )
+        return rows.map(r => new Secret({
+            app: r.app,
+            env: r.env,
+            key: r.key,
+            value: r.value,
+            type: r.type,
+            vault_dir: this.vault_dir,
+        }))
+    }
+
+    async remove_secrets(filters) {
+        return this.execute_write_sql('DELETE FROM secrets', filters)
+    }
 }

@@ -7,3 +7,4 @@ seeqrets.db
 seeqret/
 *.bat
 coverage/
+docs/

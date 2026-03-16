@@ -9,11 +9,11 @@
  * @param {string} glob
  * @returns {string}
  */
-function globToRegex(glob) {
-  let regex = glob.replace(/[.+^${}()|[\]\\]/g, '\\$&')
-  regex = regex.replace(/\*/g, '.*')
-  regex = regex.replace(/\?/g, '.')
-  return `^${regex}$`
+function glob_to_regex(glob) {
+    let regex = glob.replace(/[.+^${}()|[\]\\]/g, '\\$&')
+    regex = regex.replace(/\*/g, '.*')
+    regex = regex.replace(/\?/g, '.')
+    return `^${regex}$`
 }
 
 /**
@@ -21,8 +21,8 @@ function globToRegex(glob) {
  * @param {string} glob
  * @returns {string}
  */
-export function globToSql(glob) {
-  return glob.replace(/\*/g, '%').replace(/\?/g, '_')
+export function glob_to_sql(glob) {
+    return glob.replace(/\*/g, '%').replace(/\?/g, '_')
 }
 
 /**
@@ -30,68 +30,68 @@ export function globToSql(glob) {
  * @param {string} value
  * @returns {boolean}
  */
-export function hasGlobChars(value) {
-  return /[[\].*?]/.test(value)
+export function has_glob_chars(value) {
+    return /[[\].*?]/.test(value)
 }
 
 export class FilterSpec {
-  /**
-   * @param {string} filterspec - filter string like "app:env:key"
-   */
-  constructor(filterspec) {
-    this.filterspec = filterspec
-    const parts = filterspec.split(':')
+    /**
+     * @param {string} filter_spec - filter string like "app:env:key"
+     */
+    constructor(filter_spec) {
+        this.filter_spec = filter_spec
+        const parts = filter_spec.split(':')
 
-    if (parts.length === 1) {
-      this.app = '*'
-      this.env = '*'
-      this.name = parts[0] || '*'
-    } else if (parts.length === 2) {
-      this.app = parts[0] || '*'
-      this.env = parts[1] || '*'
-      this.name = '*'
-    } else {
-      this.app = parts[0] || '*'
-      this.env = parts[1] || '*'
-      this.name = parts[2] || '*'
+        if (parts.length === 1) {
+            this.app = '*'
+            this.env = '*'
+            this.name = parts[0] || '*'
+        } else if (parts.length === 2) {
+            this.app = parts[0] || '*'
+            this.env = parts[1] || '*'
+            this.name = '*'
+        } else {
+            this.app = parts[0] || '*'
+            this.env = parts[1] || '*'
+            this.name = parts[2] || '*'
+        }
     }
-  }
 
-  /**
-   * Convert to a filter dict for SQL queries.
-   * @returns {{ app: string, env: string, key: string }}
-   */
-  toFilterDict() {
-    return {
-      app: this.app,
-      env: this.env,
-      key: this.name,
+    /**
+     * Convert to a filter dict for SQL queries.
+     * @returns {{ app: string, env: string, key: string }}
+     */
+    to_filter_dict() {
+        return {
+            app: this.app,
+            env: this.env,
+            key: this.name,
+        }
     }
-  }
 
-  /**
-   * Check if a single value matches a glob pattern.
-   * @param {string} val
-   * @param {string} pattern
-   * @returns {boolean}
-   */
-  matchItem(val, pattern) {
-    if (pattern === '*') return true
-    const regex = new RegExp(globToRegex(pattern))
-    return regex.test(val)
-  }
+    /**
+     * Check if a single value matches a glob pattern.
+     * @param {string} val
+     * @param {string} pattern
+     * @returns {boolean}
+     */
+    match_item(val, pattern) {
+        if (pattern === '*') return true
+        const regex = new RegExp(glob_to_regex(pattern))
+        return regex.test(val)
+    }
 
-  /**
-   * Check if a [app, env, key] tuple matches this filter.
-   * @param {[string, string, string]} item
-   * @returns {boolean}
-   */
-  matches(item) {
-    const patterns = [this.app, this.env, this.name]
-    return item.every((val, i) => this.matchItem(val, patterns[i]))
-  }
+    /**
+     * Check if a [app, env, key] tuple matches this filter.
+     * @param {Array<string>} item
+     * @returns {boolean}
+     */
+    matches(item) {
+        const patterns = [this.app, this.env, this.name]
+        return item.every((val, i) => this.match_item(val, patterns[i]))
+    }
 
-  toString() {
-    return `${this.app}:${this.env}:${this.name}`
-  }
+    toString() {
+        return `${this.app}:${this.env}:${this.name}`
+    }
 }

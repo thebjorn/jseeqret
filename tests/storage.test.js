@@ -5,143 +5,143 @@ import os from 'os'
 import { SqliteStorage } from '../src/core/sqlite-storage.js'
 import { Secret } from '../src/core/models/secret.js'
 import { User } from '../src/core/models/user.js'
-import { runMigrations } from '../src/core/migrations.js'
-import { generateSymmetricKey, generateAndSaveKeyPair } from '../src/core/crypto/utils.js'
-import { encodeKey } from '../src/core/crypto/nacl.js'
+import { run_migrations } from '../src/core/migrations.js'
+import { generate_symmetric_key, generate_and_save_key_pair } from '../src/core/crypto/utils.js'
+import { encode_key } from '../src/core/crypto/nacl.js'
 
-let tmpDir
+let tmp_dir
 let storage
 
 beforeEach(async () => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jseeqret-test-'))
-  const keyPair = generateAndSaveKeyPair(tmpDir)
-  generateSymmetricKey(tmpDir)
-  const pubkey = encodeKey(keyPair.publicKey)
-  await runMigrations(tmpDir, 'testuser', 'test@test.com', pubkey)
-  storage = new SqliteStorage('seeqrets.db', tmpDir)
-  process.env.JSEEQRET = tmpDir
+    tmp_dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jseeqret-test-'))
+    const key_pair = generate_and_save_key_pair(tmp_dir)
+    generate_symmetric_key(tmp_dir)
+    const pubkey = encode_key(key_pair.publicKey)
+    await run_migrations(tmp_dir, 'testuser', 'test@test.com', pubkey)
+    storage = new SqliteStorage('seeqrets.db', tmp_dir)
+    process.env.JSEEQRET = tmp_dir
 })
 
 afterEach(() => {
-  delete process.env.JSEEQRET
-  fs.rmSync(tmpDir, { recursive: true, force: true })
+    delete process.env.JSEEQRET
+    fs.rmSync(tmp_dir, { recursive: true, force: true })
 })
 
 describe('SqliteStorage - Users', () => {
-  it('fetchAdmin returns the owner', async () => {
-    const admin = await storage.fetchAdmin()
-    expect(admin).not.toBeNull()
-    expect(admin.username).toBe('testuser')
-    expect(admin.email).toBe('test@test.com')
-  })
+    it('fetch_admin returns the owner', async () => {
+        const admin = await storage.fetch_admin()
+        expect(admin).not.toBeNull()
+        expect(admin.username).toBe('testuser')
+        expect(admin.email).toBe('test@test.com')
+    })
 
-  it('addUser and fetchUser', async () => {
-    const user = new User('alice', 'alice@test.com', 'fakepubkey123')
-    await storage.addUser(user)
-    const fetched = await storage.fetchUser('alice')
-    expect(fetched).not.toBeNull()
-    expect(fetched.username).toBe('alice')
-    expect(fetched.email).toBe('alice@test.com')
-  })
+    it('add_user and fetch_user', async () => {
+        const user = new User('alice', 'alice@test.com', 'fakepubkey123')
+        await storage.add_user(user)
+        const fetched = await storage.fetch_user('alice')
+        expect(fetched).not.toBeNull()
+        expect(fetched.username).toBe('alice')
+        expect(fetched.email).toBe('alice@test.com')
+    })
 
-  it('fetchUsers returns all users', async () => {
-    const user = new User('bob', 'bob@test.com', 'fakepubkey456')
-    await storage.addUser(user)
-    const users = await storage.fetchUsers()
-    expect(users).toHaveLength(2) // testuser + bob
-  })
+    it('fetch_users returns all users', async () => {
+        const user = new User('bob', 'bob@test.com', 'fakepubkey456')
+        await storage.add_user(user)
+        const users = await storage.fetch_users()
+        expect(users).toHaveLength(2)
+    })
 
-  it('fetchUsers with filter', async () => {
-    await storage.addUser(new User('alice', 'a@t.com', 'pk1'))
-    await storage.addUser(new User('bob', 'b@t.com', 'pk2'))
-    const users = await storage.fetchUsers({ username: 'alice' })
-    expect(users).toHaveLength(1)
-    expect(users[0].username).toBe('alice')
-  })
+    it('fetch_users with filter', async () => {
+        await storage.add_user(new User('alice', 'a@t.com', 'pk1'))
+        await storage.add_user(new User('bob', 'b@t.com', 'pk2'))
+        const users = await storage.fetch_users({ username: 'alice' })
+        expect(users).toHaveLength(1)
+        expect(users[0].username).toBe('alice')
+    })
 
-  it('fetchUser returns null for unknown user', async () => {
-    const user = await storage.fetchUser('nobody')
-    expect(user).toBeNull()
-  })
+    it('fetch_user returns null for unknown user', async () => {
+        const user = await storage.fetch_user('nobody')
+        expect(user).toBeNull()
+    })
 })
 
 describe('SqliteStorage - Secrets', () => {
-  it('addSecret and fetchSecrets', async () => {
-    const secret = new Secret({
-      app: 'myapp', env: 'dev', key: 'API_KEY',
-      plaintextValue: 'abc123', vaultDir: tmpDir,
+    it('add_secret and fetch_secrets', async () => {
+        const secret = new Secret({
+            app: 'myapp', env: 'dev', key: 'API_KEY',
+            plaintext_value: 'abc123', vault_dir: tmp_dir,
+        })
+        await storage.add_secret(secret)
+        const secrets = await storage.fetch_secrets({ app: 'myapp', env: 'dev', key: 'API_KEY' })
+        expect(secrets).toHaveLength(1)
+        expect(secrets[0].get_value()).toBe('abc123')
     })
-    await storage.addSecret(secret)
-    const secrets = await storage.fetchSecrets({ app: 'myapp', env: 'dev', key: 'API_KEY' })
-    expect(secrets).toHaveLength(1)
-    expect(secrets[0].getValue()).toBe('abc123')
-  })
 
-  it('fetchSecrets with glob filter', async () => {
-    await storage.addSecret(new Secret({
-      app: 'myapp', env: 'dev', key: 'DB_HOST',
-      plaintextValue: 'localhost', vaultDir: tmpDir,
-    }))
-    await storage.addSecret(new Secret({
-      app: 'myapp', env: 'dev', key: 'DB_PASS',
-      plaintextValue: 'secret', vaultDir: tmpDir,
-    }))
-    await storage.addSecret(new Secret({
-      app: 'myapp', env: 'dev', key: 'API_KEY',
-      plaintextValue: 'key123', vaultDir: tmpDir,
-    }))
+    it('fetch_secrets with glob filter', async () => {
+        await storage.add_secret(new Secret({
+            app: 'myapp', env: 'dev', key: 'DB_HOST',
+            plaintext_value: 'localhost', vault_dir: tmp_dir,
+        }))
+        await storage.add_secret(new Secret({
+            app: 'myapp', env: 'dev', key: 'DB_PASS',
+            plaintext_value: 'secret', vault_dir: tmp_dir,
+        }))
+        await storage.add_secret(new Secret({
+            app: 'myapp', env: 'dev', key: 'API_KEY',
+            plaintext_value: 'key123', vault_dir: tmp_dir,
+        }))
 
-    const dbSecrets = await storage.fetchSecrets({ app: 'myapp', env: 'dev', key: 'DB_*' })
-    expect(dbSecrets).toHaveLength(2)
-    const keys = dbSecrets.map(s => s.key).sort()
-    expect(keys).toEqual(['DB_HOST', 'DB_PASS'])
-  })
-
-  it('updateSecret changes value', async () => {
-    const secret = new Secret({
-      app: 'a', env: 'e', key: 'K',
-      plaintextValue: 'old', vaultDir: tmpDir,
+        const db_secrets = await storage.fetch_secrets({ app: 'myapp', env: 'dev', key: 'DB_*' })
+        expect(db_secrets).toHaveLength(2)
+        const keys = db_secrets.map(s => s.key).sort()
+        expect(keys).toEqual(['DB_HOST', 'DB_PASS'])
     })
-    await storage.addSecret(secret)
 
-    const [fetched] = await storage.fetchSecrets({ app: 'a', env: 'e', key: 'K' })
-    fetched.setValue('new')
-    await storage.updateSecret(fetched)
+    it('update_secret changes value', async () => {
+        const secret = new Secret({
+            app: 'a', env: 'e', key: 'K',
+            plaintext_value: 'old', vault_dir: tmp_dir,
+        })
+        await storage.add_secret(secret)
 
-    const [updated] = await storage.fetchSecrets({ app: 'a', env: 'e', key: 'K' })
-    expect(updated.getValue()).toBe('new')
-  })
+        const [fetched] = await storage.fetch_secrets({ app: 'a', env: 'e', key: 'K' })
+        fetched.set_value('new')
+        await storage.update_secret(fetched)
 
-  it('removeSecrets deletes matching secrets', async () => {
-    await storage.addSecret(new Secret({
-      app: 'a', env: 'e', key: 'KEEP',
-      plaintextValue: 'v1', vaultDir: tmpDir,
-    }))
-    await storage.addSecret(new Secret({
-      app: 'a', env: 'e', key: 'DELETE_ME',
-      plaintextValue: 'v2', vaultDir: tmpDir,
-    }))
+        const [updated] = await storage.fetch_secrets({ app: 'a', env: 'e', key: 'K' })
+        expect(updated.get_value()).toBe('new')
+    })
 
-    await storage.removeSecrets({ app: 'a', env: 'e', key: 'DELETE_ME' })
+    it('remove_secrets deletes matching secrets', async () => {
+        await storage.add_secret(new Secret({
+            app: 'a', env: 'e', key: 'KEEP',
+            plaintext_value: 'v1', vault_dir: tmp_dir,
+        }))
+        await storage.add_secret(new Secret({
+            app: 'a', env: 'e', key: 'DELETE_ME',
+            plaintext_value: 'v2', vault_dir: tmp_dir,
+        }))
 
-    const remaining = await storage.fetchSecrets({ app: 'a', env: 'e', key: '*' })
-    expect(remaining).toHaveLength(1)
-    expect(remaining[0].key).toBe('KEEP')
-  })
+        await storage.remove_secrets({ app: 'a', env: 'e', key: 'DELETE_ME' })
 
-  it('respects type conversion for int', async () => {
-    await storage.addSecret(new Secret({
-      app: 'a', env: 'e', key: 'PORT',
-      plaintextValue: '5432', type: 'int', vaultDir: tmpDir,
-    }))
+        const remaining = await storage.fetch_secrets({ app: 'a', env: 'e', key: '*' })
+        expect(remaining).toHaveLength(1)
+        expect(remaining[0].key).toBe('KEEP')
+    })
 
-    const [secret] = await storage.fetchSecrets({ app: 'a', env: 'e', key: 'PORT' })
-    expect(secret.getValue()).toBe(5432)
-    expect(typeof secret.getValue()).toBe('number')
-  })
+    it('respects type conversion for int', async () => {
+        await storage.add_secret(new Secret({
+            app: 'a', env: 'e', key: 'PORT',
+            plaintext_value: '5432', type: 'int', vault_dir: tmp_dir,
+        }))
 
-  it('empty result for non-matching filter', async () => {
-    const secrets = await storage.fetchSecrets({ app: 'nonexistent', env: '*', key: '*' })
-    expect(secrets).toHaveLength(0)
-  })
+        const [secret] = await storage.fetch_secrets({ app: 'a', env: 'e', key: 'PORT' })
+        expect(secret.get_value()).toBe(5432)
+        expect(typeof secret.get_value()).toBe('number')
+    })
+
+    it('empty result for non-matching filter', async () => {
+        const secrets = await storage.fetch_secrets({ app: 'nonexistent', env: '*', key: '*' })
+        expect(secrets).toHaveLength(0)
+    })
 })
