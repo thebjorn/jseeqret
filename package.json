@@ -4,6 +4,10 @@
   "type": "module",
   "description": "Secure secrets manager - JavaScript/Electron/Svelte5 port of seeqret",
   "main": "./out/main/index.js",
+  "exports": {
+    ".": "./src/core/api.js",
+    "./core": "./src/core/index.js"
+  },
   "bin": {
     "jseeqret": "./src/cli/index.js"
   },
@@ -11,22 +15,28 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
-    "cli": "node ./src/cli/index.js"
+    "cli": "node ./src/cli/index.js",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
+    "bench": "node bench/get-benchmark.js"
   },
   "dependencies": {
-    "sql.js": "^1.11.0",
+    "cli-table3": "^0.6.5",
     "commander": "^12.0.0",
+    "sql.js": "^1.11.0",
     "tweetnacl": "^1.0.3",
-    "tweetnacl-util": "^0.15.1",
-    "cli-table3": "^0.6.5"
+    "tweetnacl-util": "^0.15.1"
   },
   "devDependencies": {
     "@electron-toolkit/preload": "^3.0.0",
     "@electron-toolkit/utils": "^3.0.0",
     "@sveltejs/vite-plugin-svelte": "^4.0.0",
+    "@vitest/coverage-v8": "^4.1.0",
     "electron": "^31.0.0",
     "electron-vite": "^2.3.0",
     "svelte": "^5.0.0",
-    "vite": "^5.4.0"
+    "vite": "^5.4.0",
+    "vitest": "^4.1.0"
   }
 }

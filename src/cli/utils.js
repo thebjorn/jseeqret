@@ -13,24 +13,61 @@ import { SqliteStorage } from '../core/sqlite-storage.js'
  */
 export function asTable(headers, items) {
   const cols = headers.split(',').map(s => s.trim())
+  const rows = items.map(item => item.row || item)
+
+  // Calculate max content width per column (including header)
+  const maxWidths = cols.map((header, i) => {
+    const cellWidths = rows.map(row => String(row[i] ?? '').length)
+    return Math.max(header.length, ...cellWidths)
+  })
+
   const termWidth = process.stdout.columns || 80
-  // Borders/padding: 1 left border + (3 per col: space+content+space) + 1 separator between cols + 1 right border
-  // Simplified: each col has 3 chars overhead, plus 1 for the left border
+  // cli-table3 overhead: 1 left border + 1 right border per col + 1 padding each side per col
   const overhead = cols.length * 3 + 1
   const available = Math.max(termWidth - overhead, cols.length * 4)
-  const colWidth = Math.floor(available / cols.length)
-  const colWidths = cols.map(() => colWidth)
 
+  // Shrink widest columns first until total fits
+  const widths = [...maxWidths]
+  const MIN_COL = 4
+  while (widths.reduce((a, b) => a + b, 0) > available) {
+    const max = Math.max(...widths)
+    if (max <= MIN_COL) break
+    // Find the second-widest value (or MIN_COL if all are the same)
+    const target = Math.max(MIN_COL, ...widths.filter(w => w < max))
+    // Shrink all widest columns toward the target, but only enough to fit
+    const excess = widths.reduce((a, b) => a + b, 0) - available
+    const widestCount = widths.filter(w => w === max).length
+    const shrinkEach = Math.min(max - target, Math.ceil(excess / widestCount))
+    for (let i = 0; i < widths.length; i++) {
+      if (widths[i] === max) widths[i] -= shrinkEach
+    }
+  }
+
+  const colWidths = widths.map(w => w + 2)  // +2 for cli-table3 padding
+
+  // Render with bold (═) mid-lines, then strip all but the header separator
   const table = new Table({
     head: cols,
     colWidths,
     wordWrap: true,
+    chars: {
+      'mid': '═', 'mid-mid': '╪', 'left-mid': '╞', 'right-mid': '╡',
+    },
   })
-  for (const item of items) {
-    const row = item.row || item
+  for (const row of rows) {
     table.push(row)
   }
-  console.log(table.toString())
+  const output = table.toString()
+  // Remove mid-lines (╞═...╡) except the first one (under header)
+  let found = false
+  const lines = output.split('\n').filter(line => {
+    if (line.includes('╞') && line.includes('╡')) {
+      if (!found) { found = true; return true }
+      return false
+    }
+    return true
+  })
+  console.log(lines.join('\n'))
 }
 
 /**
