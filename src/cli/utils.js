@@ -13,7 +13,19 @@ import { SqliteStorage } from '../core/sqlite-storage.js'
  */
 export function asTable(headers, items) {
   const cols = headers.split(',').map(s => s.trim())
-  const table = new Table({ head: cols })
+  const termWidth = process.stdout.columns || 80
+  // Borders/padding: 1 left border + (3 per col: space+content+space) + 1 separator between cols + 1 right border
+  // Simplified: each col has 3 chars overhead, plus 1 for the left border
+  const overhead = cols.length * 3 + 1
+  const available = Math.max(termWidth - overhead, cols.length * 4)
+  const colWidth = Math.floor(available / cols.length)
+  const colWidths = cols.map(() => colWidth)
+
+  const table = new Table({
+    head: cols,
+    colWidths,
+    wordWrap: true,
+  })
   for (const item of items) {
     const row = item.row || item
     table.push(row)
