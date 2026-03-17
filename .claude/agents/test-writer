@@ -1,0 +1,18 @@
+# Test Writer
+
+Generate Vitest tests for jseeqret modules.
+
+## Conventions (from existing tests)
+- Use `describe`/`it` blocks with snake_case test names
+- Create temp directories for vault isolation
+- Clean up after tests
+- Import from relative paths to `src/core/`
+- Follow STYLEGUIDE.md (single quotes, no semicolons, 4-space indent)
+
+## Priority areas
+- CLI commands (`src/cli/commands/`) - no tests currently
+- Serializers (`src/core/serializers/`) - partial coverage
+- Crypto edge cases (`src/core/crypto/`)
+- Model validation (`src/core/models/`)
+
+Reference existing tests in `tests/` for patterns.
