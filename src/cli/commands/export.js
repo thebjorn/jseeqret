@@ -14,6 +14,8 @@ export const export_command = new Command('export')
     .option('-f, --filter <filter...>', 'Filter spec(s) (app:env:key)', [])
     .option('-s, --serializer <name>', 'Serializer to use', 'json-crypt')
     .option('-o, --out <file>', 'Output file path')
+    .option('-w, --windows', 'Export in Windows format')
+    .option('-l, --linux', 'Export in Linux format')
     .action(async (opts) => {
         require_vault()
         const storage = new SqliteStorage()
@@ -50,7 +52,11 @@ export const export_command = new Command('export')
                 sender_private_key,
             })
 
-            const output = serializer.dumps(all_secrets)
+            let system = null
+            if (opts.windows) system = 'win32'
+            if (opts.linux) system = 'linux'
+
+            const output = serializer.dumps(all_secrets, system)
 
             if (opts.out) {
                 fs.writeFileSync(opts.out, output, 'utf-8')

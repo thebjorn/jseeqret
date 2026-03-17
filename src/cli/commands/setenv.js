@@ -1,4 +1,4 @@
-import { execSync } from 'child_process'
+import { execFileSync } from 'child_process'
 import { Command } from 'commander'
 import { SqliteStorage } from '../../core/sqlite-storage.js'
 import { FilterSpec } from '../../core/filter.js'
@@ -50,7 +50,7 @@ export const setenv_command = new Command('setenv')
         for (const secret of secrets) {
             const val = String(secret.get_value())
             try {
-                execSync(`setx ${secret.key} "${val}"`, { stdio: 'pipe' })
+                execFileSync('setx', [secret.key, val], { stdio: 'pipe' })
                 console.log(`  Set: ${secret.key}`)
                 set_commands.push(`set "${secret.key}=${val}"`)
             } catch (e) {

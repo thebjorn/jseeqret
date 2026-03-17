@@ -94,8 +94,8 @@ export class SqliteStorage {
 
         for (const v of values) {
             if (v === '*') {
-                clauses.push(`${field} = ?`)
-                params.push(v)
+                clauses.push(`${field} LIKE ?`)
+                params.push('%')
             } else {
                 const { clause, params: p } = this._where_field(field, v)
                 clauses.push(clause)

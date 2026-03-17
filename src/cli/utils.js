@@ -90,10 +90,10 @@ export function require_vault() {
 /**
  * Validate the current user is a registered vault user.
  */
-export function validate_current_user() {
+export async function validate_current_user() {
     const user = current_user()
     const storage = new SqliteStorage()
-    const users = storage.fetch_users({ username: user })
+    const users = await storage.fetch_users({ username: user })
 
     if (users.length === 0) {
         console.error('Error: You are not a valid user of this vault.')
