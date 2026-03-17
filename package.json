@@ -3,6 +3,7 @@
   "version": "0.5.1",
   "type": "module",
   "description": "Secure secrets manager - JavaScript/Electron/Svelte5 port of seeqret",
+  "author": "thebjorn",
   "main": "./out/main/index.js",
   "exports": {
     ".": "./src/core/api.js",
@@ -20,6 +21,9 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
+    "dist": "electron-vite build && electron-builder --win",
+    "dist:nsis": "electron-vite build && electron-builder --win nsis",
+    "dist:portable": "electron-vite build && electron-builder --win portable",
     "cli": "node ./src/cli/index.js",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
@@ -27,9 +31,54 @@
     "bench": "node bench/get-benchmark.js",
     "docs": "jsdoc -c jsdoc.config.json"
   },
+  "build": {
+    "appId": "com.jseeqret.app",
+    "productName": "jseeqret",
+    "copyright": "Copyright © 2024-2026 jseeqret contributors",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "out/**/*",
+      "!out/**/*.map"
+    ],
+    "extraResources": [
+      {
+        "from": "node_modules/sql.js/dist/sql-wasm.wasm",
+        "to": "sql-wasm.wasm"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "jseeqret"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "thebjorn",
+      "repo": "jseeqret"
+    }
+  },
   "dependencies": {
     "cli-table3": "^0.6.5",
     "commander": "^12.0.0",
+    "electron-updater": "^6.8.3",
     "sql.js": "^1.11.0",
     "tweetnacl": "^1.0.3",
     "tweetnacl-util": "^0.15.1"
@@ -40,6 +89,7 @@
     "@sveltejs/vite-plugin-svelte": "^4.0.0",
     "@vitest/coverage-v8": "^4.1.0",
     "electron": "^31.0.0",
+    "electron-builder": "^26.8.1",
     "electron-vite": "^2.3.0",
     "jsdoc": "^4.0.5",
     "svelte": "^5.0.0",
