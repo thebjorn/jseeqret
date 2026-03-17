@@ -26,9 +26,10 @@ export class BaseSerializer {
     /**
      * Serialize secrets to a string.
      * @param {Array} secrets - array of Secret objects
+     * @param {string} [system] - target platform ('win32' or 'linux')
      * @returns {string}
      */
-    dumps(secrets) {
+    dumps(secrets, system = null) {
         throw new Error('Not implemented')
     }
 

@@ -31,9 +31,13 @@ export function get_seeqret_dir() {
  * @returns {boolean}
  */
 export function is_initialized() {
-    if (!process.env.JSEEQRET && !process.env.SEEQRET) return false
+    let sdir
+    try {
+        sdir = get_seeqret_dir()
+    } catch {
+        return false
+    }
 
-    const sdir = get_seeqret_dir()
     if (!fs.existsSync(sdir)) return false
     if (!fs.existsSync(path.join(sdir, 'seeqrets.db'))) return false
 

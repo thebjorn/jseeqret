@@ -1,24 +1,70 @@
 import { Command } from 'commander'
 import { is_initialized, get_seeqret_dir } from '../../core/vault.js'
+import { SqliteStorage } from '../../core/sqlite-storage.js'
 
 export const info_command = new Command('info')
     .description('Show vault info')
-    .action(() => {
-        console.log('jseeqret v0.1.0')
+    .option('-d, --dump', 'Dump vault info as JSON')
+    .action(async (opts) => {
+        const initialized = is_initialized()
+        const info = {
+            version: '0.5.1',
+            initialized,
+            vault_dir: null,
+            owner: null,
+            user_count: null,
+            secret_count: null,
+        }
+
+        if (initialized) {
+            info.vault_dir = get_seeqret_dir()
+            try {
+                const storage = new SqliteStorage()
+                const admin = await storage.fetch_admin()
+                if (admin) info.owner = admin.username
+                const users = await storage.fetch_users()
+                info.user_count = users.length
+                const secrets = await storage.fetch_secrets({
+                    app: '*', env: '*', key: '*',
+                })
+                info.secret_count = secrets.length
+            } catch {
+                // storage might fail if db is corrupted
+            }
+        }
+
+        if (opts.dump) {
+            console.log(JSON.stringify(info, null, 4))
+            return
+        }
+
+        console.log('jseeqret v0.5.1')
         console.log()
 
-        if (is_initialized()) {
-            console.log(`Vault directory: ${get_seeqret_dir()}`)
+        if (initialized) {
+            console.log(`Vault directory: ${info.vault_dir}`)
             console.log('Status: initialized')
+            if (info.owner) {
+                console.log(`Owner: ${info.owner}`)
+            }
+            if (info.user_count !== null) {
+                console.log(`Users: ${info.user_count}`)
+            }
+            if (info.secret_count !== null) {
+                console.log(`Secrets: ${info.secret_count}`)
+            }
         } else {
             console.log('Status: not initialized')
-            console.log('Run `jseeqret init` to create a vault.')
+            console.log(
+                'Run `jseeqret init` to create a vault.'
+            )
         }
 
         console.log()
         console.log('Commands:')
         console.log('  init <dir>          Initialize a new vault')
         console.log('  add key <n> <v>     Add a secret')
+        console.log('  add text <n>        Add a multi-line secret')
         console.log('  add user            Add a user')
         console.log('  list [-f filter]    List secrets')
         console.log('  get <filter>        Get a secret value')
@@ -36,5 +82,6 @@ export const info_command = new Command('info')
         console.log('  importenv <file>    Import .env file')
         console.log('  setenv <filter>     Set Windows env variables')
         console.log('  serializers         List serializers')
+        console.log('  server init         Initialize server vault')
         console.log('  introduction        Print onboarding info')
     })

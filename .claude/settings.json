@@ -1,0 +1,29 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"const path = process.argv[1]; if (path && (path.includes('package-lock.json') || path.includes('node_modules'))) { console.error('BLOCK: Do not edit lock files or node_modules directly'); process.exit(2); }\" \"$INPUT_FILE\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"const f = process.argv[1]; if (f && f.includes('src/core')) { const { execSync } = require('child_process'); try { execSync('npx vitest run --reporter=dot', { stdio: 'pipe' }); console.log('Tests passed'); } catch(e) { console.error('Tests FAILED'); process.exit(1); } }\" \"$INPUT_FILE\""
+          }
+        ]
+      }
+    ]
+  },
+  "enabledPlugins": {
+    "security-guidance@claude-plugins-official": true
+  }
+}

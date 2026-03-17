@@ -4,6 +4,7 @@ import path from 'path'
 import { run_migrations } from '../../core/migrations.js'
 import { generate_symmetric_key, generate_and_save_key_pair } from '../../core/crypto/utils.js'
 import { encode_key } from '../../core/crypto/nacl.js'
+import { harden_vault_windows } from '../../core/fileutils.js'
 
 export const init_command = new Command('init')
     .description('Initialize a new vault in DIR')
@@ -22,8 +23,10 @@ export const init_command = new Command('init')
         }
 
         if (!fs.existsSync(vault_dir)) {
-            fs.mkdirSync(vault_dir, { recursive: true })
+            fs.mkdirSync(vault_dir, { mode: 0o770, recursive: true })
         }
+
+        harden_vault_windows(vault_dir)
 
         // Generate or use provided symmetric key
         if (opts.key) {

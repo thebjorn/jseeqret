@@ -1,6 +1,8 @@
 import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import pkg from 'electron-updater'
+const { autoUpdater } = pkg
 import { register_ipc_handlers } from './ipc-handlers.js'
 
 function createWindow() {
@@ -9,6 +11,7 @@ function createWindow() {
         height: 700,
         show: false,
         autoHideMenuBar: true,
+        icon: join(__dirname, '../../build/icon.png'),
         webPreferences: {
             preload: join(__dirname, '../preload/index.mjs'),
             sandbox: false
@@ -33,6 +36,23 @@ function createWindow() {
     return mainWindow
 }
 
+function setup_auto_updater() {
+    autoUpdater.autoDownload = true
+    autoUpdater.autoInstallOnAppQuit = true
+
+    autoUpdater.on('update-available', (info) => {
+        console.log('Update available:', info.version)
+    })
+    autoUpdater.on('update-downloaded', (info) => {
+        console.log('Update downloaded:', info.version)
+    })
+    autoUpdater.on('error', (err) => {
+        console.error('Auto-update error:', err.message)
+    })
+
+    autoUpdater.checkForUpdatesAndNotify()
+}
+
 app.whenReady().then(() => {
     electronApp.setAppUserModelId('com.jseeqret')
 
@@ -42,6 +62,10 @@ app.whenReady().then(() => {
 
     register_ipc_handlers()
     createWindow()
+
+    if (!is.dev) {
+        setup_auto_updater()
+    }
 
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) createWindow()

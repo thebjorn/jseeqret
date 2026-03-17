@@ -4,7 +4,8 @@
  * jseeqret CLI - compatible with Python seeqret's command structure.
  */
 
-import { Command } from 'commander'
+import { Command, Option } from 'commander'
+import { set_log_level } from '../core/logger.js'
 import { init_command } from './commands/init.js'
 import { add_commands } from './commands/add.js'
 import { list_command } from './commands/list.js'
@@ -25,6 +26,7 @@ import { importenv_command } from './commands/importenv.js'
 import { setenv_command } from './commands/setenv.js'
 import { serializers_command } from './commands/serializers.js'
 import { introduction_command } from './commands/introduction.js'
+import { server_commands } from './commands/server.js'
 
 const program = new Command()
 
@@ -32,6 +34,15 @@ program
     .name('jseeqret')
     .description('Secure secrets manager (JS port of seeqret)')
     .version('0.5.1')
+    .addOption(
+        new Option('-L, --log <level>', 'Set log level')
+            .choices(['ERROR', 'WARNING', 'INFO', 'DEBUG'])
+            .default('ERROR')
+    )
+    .hook('preAction', (this_command) => {
+        const opts = this_command.opts()
+        if (opts.log) set_log_level(opts.log)
+    })
 
 program.addCommand(init_command)
 program.addCommand(list_command)
@@ -53,5 +64,6 @@ program.addCommand(importenv_command)
 program.addCommand(setenv_command)
 program.addCommand(serializers_command)
 program.addCommand(introduction_command)
+program.addCommand(server_commands)
 
 program.parse()

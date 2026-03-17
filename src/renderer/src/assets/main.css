@@ -1,93 +1,144 @@
 :root {
-  --bg: #1a1a2e;
-  --bg-card: #16213e;
-  --bg-input: #0f3460;
-  --text: #e0e0e0;
-  --text-muted: #8892a4;
-  --accent: #e94560;
-  --accent-hover: #ff6b81;
-  --success: #4ecca3;
-  --border: #2a2a4a;
-  --font-mono: 'Consolas', 'Monaco', 'Courier New', monospace;
+    --bg: #1a1a2e;
+    --bg-card: #16213e;
+    --bg-input: #0f3460;
+    --bg-sidebar: #111827;
+    --text: #e0e0e0;
+    --text-muted: #8892a4;
+    --accent: #e94560;
+    --accent-hover: #ff6b81;
+    --success: #4ecca3;
+    --success-dim: rgba(78, 204, 163, 0.15);
+    --warning: #f0a030;
+    --border: #2a2a4a;
+    --font-mono: 'Consolas', 'Monaco', 'Courier New', monospace;
+    --sidebar-width: 220px;
+    --radius: 8px;
+    --transition: 0.2s ease;
 }
 
 * {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: var(--bg);
-  color: var(--text);
-  line-height: 1.6;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    overflow: hidden;
+    height: 100vh;
+}
+
+#app {
+    display: flex;
+    height: 100vh;
 }
 
 button {
-  cursor: pointer;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  transition: background 0.2s;
+    cursor: pointer;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background var(--transition), color var(--transition),
+                border-color var(--transition), transform 0.1s;
+}
+
+button:active {
+    transform: scale(0.98);
 }
 
 button.primary {
-  background: var(--accent);
-  color: white;
+    background: var(--accent);
+    color: white;
 }
 button.primary:hover {
-  background: var(--accent-hover);
+    background: var(--accent-hover);
 }
 
 button.secondary {
-  background: var(--bg-input);
-  color: var(--text);
-  border: 1px solid var(--border);
+    background: var(--bg-input);
+    color: var(--text);
+    border: 1px solid var(--border);
 }
 button.secondary:hover {
-  background: var(--border);
+    background: var(--border);
 }
 
-input, select {
-  background: var(--bg-input);
-  color: var(--text);
-  border: 1px solid var(--border);
-  padding: 8px 12px;
-  border-radius: 6px;
-  font-size: 14px;
-  outline: none;
+button.ghost {
+    background: transparent;
+    color: var(--text-muted);
+    padding: 6px 12px;
+}
+button.ghost:hover {
+    color: var(--text);
+    background: var(--bg-input);
 }
 
-input:focus, select:focus {
-  border-color: var(--accent);
+input, select, textarea {
+    background: var(--bg-input);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 14px;
+    outline: none;
+    transition: border-color var(--transition);
+}
+
+input:focus, select:focus, textarea:focus {
+    border-color: var(--accent);
+}
+
+textarea {
+    font-family: var(--font-mono);
+    resize: vertical;
 }
 
 table {
-  width: 100%;
-  border-collapse: collapse;
+    width: 100%;
+    border-collapse: collapse;
 }
 
 th {
-  text-align: left;
-  padding: 10px 12px;
-  background: var(--bg-input);
-  font-weight: 600;
-  font-size: 13px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
-  border-bottom: 2px solid var(--border);
+    text-align: left;
+    padding: 10px 12px;
+    background: var(--bg-input);
+    font-weight: 600;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    border-bottom: 2px solid var(--border);
 }
 
 td {
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--border);
-  font-size: 14px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
 }
 
 tr:hover td {
-  background: rgba(233, 69, 96, 0.05);
+    background: rgba(233, 69, 96, 0.05);
+}
+
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
 }
