@@ -8,3 +8,4 @@ seeqret/
 *.bat
 coverage/
 docs/
+.claude/settings.local.json
