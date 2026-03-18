@@ -9,3 +9,4 @@ seeqret/
 *.bat
 coverage/
 docs/
+plantuml.jar
