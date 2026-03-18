@@ -10,3 +10,4 @@ seeqret/
 coverage/
 docs/
 plantuml.jar
+.claude/settings.local.json

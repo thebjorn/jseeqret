@@ -1,5 +1,12 @@
 # jseeqret
 
+![cicd](https://github.com/thebjorn/jseeqret/actions/workflows/ci.yml/badge.svg)
+[![codecov](https://codecov.io/gh/thebjorn/jseeqret/graph/badge.svg?token=5PQOZLTSYD)](https://codecov.io/gh/thebjorn/seeqret)
+[![downloads](https://img.shields.io/npm/dt/jseeqret)](https://www.npmjs.com/package/jseeqret)
+[![Socket Badge](https://socket.dev/api/badge/npm/package/jseeqret/0.1.0)](https://socket.dev/npm/package/jseeqret/overview/0.1.0)
+
+<!-- <a href="https://github.com/thebjorn/jseeqret"><img src="docs/github-mark/github-mark.png" width="25" height="25"></a> -->
+
 JavaScript/Electron/Svelte 5 port of [seeqret](https://github.com/thebjorn/seeqret) - a secure secrets manager.
 
 **Fully compatible** with Python seeqret vaults - reads and writes the same database, encryption keys, and formats.
