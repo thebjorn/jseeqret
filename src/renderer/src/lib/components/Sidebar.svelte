@@ -18,6 +18,9 @@
             <path d="M7 11V7a5 5 0 0 1 10 0v4" />
         </svg>
         <span class="brand-text">jseeqret</span>
+        {#if status?.version}
+            <span class="version">v{status.version}</span>
+        {/if}
     </div>
 
     <nav>
@@ -186,5 +189,14 @@
         font-family: var(--font-mono);
         font-size: 13px;
         color: var(--success);
+    }
+
+    .version {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--text-muted);
+        opacity: 0.5;
+        align-self: flex-end;
+        margin-bottom: 2px;
     }
 </style>

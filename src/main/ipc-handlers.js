@@ -1,5 +1,9 @@
+import { createRequire } from 'module'
 import { ipcMain } from 'electron'
 import { SqliteStorage } from '../core/sqlite-storage.js'
+
+const require = createRequire(import.meta.url)
+const { version: pkg_version } = require('../../package.json')
 import { FilterSpec } from '../core/filter.js'
 import { Secret } from '../core/models/secret.js'
 import { User } from '../core/models/user.js'
@@ -19,6 +23,7 @@ export function register_ipc_handlers() {
             initialized,
             vaultDir: initialized ? get_seeqret_dir() : null,
             currentUser: current_user(),
+            version: pkg_version,
         }
     })
 
