@@ -1,4 +1,6 @@
 import { createRequire } from 'module'
+import fs from 'fs'
+import path from 'path'
 import { ipcMain } from 'electron'
 import { SqliteStorage } from '../core/sqlite-storage.js'
 
@@ -11,6 +13,10 @@ import { is_initialized, get_seeqret_dir, current_user } from '../core/vault.js'
 import { load_private_key_str, load_public_key_str } from '../core/crypto/utils.js'
 import { decode_key } from '../core/crypto/nacl.js'
 import { get_serializer, list_serializers } from '../core/serializers/index.js'
+import {
+    registry_list, registry_add, registry_remove,
+    registry_use, registry_default,
+} from '../core/vault-registry.js'
 
 function get_storage() {
     return new SqliteStorage()
@@ -24,6 +30,7 @@ export function register_ipc_handlers() {
             vaultDir: initialized ? get_seeqret_dir() : null,
             currentUser: current_user(),
             version: pkg_version,
+            activeVault: registry_default(),
         }
     })
 
@@ -175,5 +182,35 @@ export function register_ipc_handlers() {
             tag: cls.tag,
             description: cls.description,
         }))
+    })
+
+    // -- Vault registry ------------------------------------------------
+
+    ipcMain.handle('vaults:list', () => {
+        return registry_list().map(v => ({
+            ...v,
+            initialized: fs.existsSync(path.join(v.path, 'seeqrets.db')),
+        }))
+    })
+
+    ipcMain.handle('vaults:add', (_event, { name, vault_path }) => {
+        registry_add(name, vault_path)
+        return { ok: true }
+    })
+
+    ipcMain.handle('vaults:remove', (_event, { name }) => {
+        if (!registry_remove(name)) {
+            throw new Error(`Vault "${name}" is not registered`)
+        }
+        return { ok: true }
+    })
+
+    ipcMain.handle('vaults:switch', (_event, { name }) => {
+        registry_use(name)
+        return { ok: true }
+    })
+
+    ipcMain.handle('vaults:default', () => {
+        return registry_default()
     })
 }

@@ -1,5 +1,7 @@
 <script>
-    let { view = 'dashboard', onnavigate, status = null } = $props()
+    import VaultSwitcher from './VaultSwitcher.svelte'
+
+    let { view = 'dashboard', onnavigate, status = null, onvaultswitch } = $props()
     
     const nav_items = [
         { id: 'dashboard', label: 'Dashboard', icon: 'grid' },
@@ -23,8 +25,13 @@
         {/if}
     </div>
 
+    <VaultSwitcher
+        active_vault={status?.activeVault}
+        onswitch={onvaultswitch}
+    />
+
     <nav>
-        {#each nav_items as item}
+        {#each nav_items as item (item.id)}
             <button
                 class="nav-item"
                 class:active={view === item.id}

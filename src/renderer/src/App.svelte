@@ -32,6 +32,11 @@
         view = target
     }
 
+    function handle_vault_switch() {
+        refresh_key++
+        load_status()
+    }
+
     $effect(() => {
         load_status()
     })
@@ -42,6 +47,7 @@
         {view}
         onnavigate={navigate}
         status={vault_status}
+        onvaultswitch={handle_vault_switch}
     />
 
     <main class="main-content">
