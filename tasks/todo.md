@@ -27,12 +27,12 @@
 
 ### Tasks
 
-- [ ] Create `src/core/vault-registry.js`
-- [ ] Write tests in `tests/vault-registry.test.js`
-- [ ] Update `src/core/vault.js` to support name resolution
-- [ ] Create `src/cli/commands/vault.js` (list, add, remove, use)
-- [ ] Update `src/cli/index.js` (global `--vault` option + vault command)
-- [ ] Run full test suite and verify all tests pass
+- [x] Create `src/core/vault-registry.js`
+- [x] Write tests in `tests/vault-registry.test.js`
+- [x] Update `src/core/vault.js` to support name resolution
+- [x] Create `src/cli/commands/vault.js` (list, add, remove, use)
+- [x] Update `src/cli/index.js` (global `--vault` option + vault command)
+- [x] Run full test suite and verify all tests pass
 
 ## Critical
 
