@@ -1,7 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { createRequire } from 'module'
 import {
     create_test_vault, cleanup_vault, run_command,
 } from './cli-helpers.js'
+
+const require = createRequire(import.meta.url)
+const { version: pkg_version } = require('../package.json')
 
 let tmp_dir
 
@@ -46,7 +50,7 @@ describe('CLI: info', () => {
         expect(result.exit_code).toBe(0)
         const info = JSON.parse(result.stdout)
         expect(info.initialized).toBe(true)
-        expect(info.version).toBe('0.5.1')
+        expect(info.version).toBe(pkg_version)
         expect(info.owner).toBe('testuser')
         expect(info.secret_count).toBe(1)
         expect(info.user_count).toBe(1)

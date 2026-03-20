@@ -4,8 +4,12 @@
  * jseeqret CLI - compatible with Python seeqret's command structure.
  */
 
+import { createRequire } from 'module'
 import { Command, Option } from 'commander'
 import { set_log_level } from '../core/logger.js'
+
+const require = createRequire(import.meta.url)
+const { version: pkg_version } = require('../../package.json')
 import { init_command } from './commands/init.js'
 import { add_commands } from './commands/add.js'
 import { list_command } from './commands/list.js'
@@ -34,7 +38,7 @@ const program = new Command()
 program
     .name('jseeqret')
     .description('Secure secrets manager (JS port of seeqret)')
-    .version('0.5.1')
+    .version(pkg_version)
     .addOption(
         new Option('-L, --log <level>', 'Set log level')
             .choices(['ERROR', 'WARNING', 'INFO', 'DEBUG'])

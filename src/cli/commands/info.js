@@ -1,6 +1,10 @@
 import { Command } from 'commander'
+import { createRequire } from 'module'
 import { is_initialized, get_seeqret_dir } from '../../core/vault.js'
 import { SqliteStorage } from '../../core/sqlite-storage.js'
+
+const require = createRequire(import.meta.url)
+const { version: pkg_version } = require('../../../package.json')
 
 export const info_command = new Command('info')
     .description('Show vault info')
@@ -8,7 +12,7 @@ export const info_command = new Command('info')
     .action(async (opts) => {
         const initialized = is_initialized()
         const info = {
-            version: '0.5.1',
+            version: pkg_version,
             initialized,
             vault_dir: null,
             owner: null,
@@ -38,7 +42,7 @@ export const info_command = new Command('info')
             return
         }
 
-        console.log('jseeqret v0.5.1')
+        console.log(`jseeqret v${pkg_version}`)
         console.log()
 
         if (initialized) {
