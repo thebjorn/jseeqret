@@ -27,6 +27,7 @@ import { setenv_command } from './commands/setenv.js'
 import { serializers_command } from './commands/serializers.js'
 import { introduction_command } from './commands/introduction.js'
 import { server_commands } from './commands/server.js'
+import { gui_command } from './commands/gui.js'
 
 const program = new Command()
 
@@ -65,5 +66,6 @@ program.addCommand(setenv_command)
 program.addCommand(serializers_command)
 program.addCommand(introduction_command)
 program.addCommand(server_commands)
+program.addCommand(gui_command)
 
 program.parse()
