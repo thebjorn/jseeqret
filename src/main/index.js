@@ -36,18 +36,43 @@ function createWindow() {
     return mainWindow
 }
 
-function setup_auto_updater() {
+function setup_auto_updater(main_window) {
     autoUpdater.autoDownload = true
     autoUpdater.autoInstallOnAppQuit = true
 
+    function send_status(status, info = {}) {
+        main_window?.webContents?.send('update:status', { status, ...info })
+    }
+
+    autoUpdater.on('checking-for-update', () => {
+        send_status('checking')
+    })
     autoUpdater.on('update-available', (info) => {
         console.log('Update available:', info.version)
+        send_status('available', { version: info.version })
+    })
+    autoUpdater.on('update-not-available', () => {
+        send_status('up-to-date')
+    })
+    autoUpdater.on('download-progress', (progress) => {
+        send_status('downloading', { percent: Math.round(progress.percent) })
     })
     autoUpdater.on('update-downloaded', (info) => {
         console.log('Update downloaded:', info.version)
+        send_status('downloaded', { version: info.version })
     })
     autoUpdater.on('error', (err) => {
         console.error('Auto-update error:', err.message)
+        send_status('error', { message: err.message })
+    })
+
+    ipcMain.handle('app:check-update', async () => {
+        const result = await autoUpdater.checkForUpdates()
+        return result?.updateInfo?.version ?? null
+    })
+
+    ipcMain.handle('app:install-update', () => {
+        autoUpdater.quitAndInstall()
     })
 
     autoUpdater.checkForUpdatesAndNotify()
@@ -61,10 +86,10 @@ app.whenReady().then(() => {
     })
 
     register_ipc_handlers()
-    createWindow()
+    const main_window = createWindow()
 
     if (!is.dev) {
-        setup_auto_updater()
+        setup_auto_updater(main_window)
     }
 
     app.on('activate', () => {

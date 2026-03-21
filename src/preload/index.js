@@ -20,6 +20,13 @@ const api = {
     removeVault: (data) => ipcRenderer.invoke('vaults:remove', data),
     switchVault: (data) => ipcRenderer.invoke('vaults:switch', data),
     getDefaultVault: () => ipcRenderer.invoke('vaults:default'),
+    checkForUpdate: () => ipcRenderer.invoke('app:check-update'),
+    installUpdate: () => ipcRenderer.invoke('app:install-update'),
+    onUpdateStatus: (callback) => {
+        const handler = (_event, data) => callback(data)
+        ipcRenderer.on('update:status', handler)
+        return () => ipcRenderer.removeListener('update:status', handler)
+    },
 }
 
 if (process.contextIsolated) {
