@@ -10,10 +10,7 @@
     let open = $state(false)
     let vaults = $state([])
     let loading = $state(true)
-    let show_add = $state(false)
-    let new_name = $state('')
-    let new_path = $state('')
-    let add_error = $state('')
+    let creating = $state(false)
     let dropdown_el = $state(null)
 
     async function load_vaults() {
@@ -26,9 +23,11 @@
         }
     }
 
-    async function switch_vault(name) {
+    async function switch_vault(vault) {
         try {
-            await window.api.switchVault({ name })
+            const data = { name: vault.name }
+            if (vault.from_env) data.vault_path = vault.path
+            await window.api.switchVault(data)
             open = false
             onswitch?.()
         } catch (e) {
@@ -36,23 +35,19 @@
         }
     }
 
-    async function add_vault() {
-        if (!new_name.trim() || !new_path.trim()) {
-            add_error = 'Name and path are required'
-            return
-        }
+    async function create_vault() {
+        creating = true
         try {
-            await window.api.addVault({
-                name: new_name.trim(),
-                vault_path: new_path.trim(),
-            })
-            new_name = ''
-            new_path = ''
-            show_add = false
-            add_error = ''
-            await load_vaults()
+            const result = await window.api.createVault()
+            if (!result.canceled) {
+                await load_vaults()
+                open = false
+                onswitch?.()
+            }
         } catch (e) {
-            add_error = e.message
+            console.error('Failed to create vault:', e)
+        } finally {
+            creating = false
         }
     }
 
@@ -68,7 +63,6 @@
     function handle_click_outside(event) {
         if (dropdown_el && !dropdown_el.contains(event.target)) {
             open = false
-            show_add = false
         }
     }
 
@@ -86,12 +80,12 @@
     })
 </script>
 
-{#if !loading && vaults.length > 0}
+{#if !loading}
     <div class="vault-switcher" bind:this={dropdown_el}>
         <button
             class="vault-trigger"
             class:is-open={open}
-            onclick={() => { open = !open; show_add = false }}
+            onclick={() => { open = !open }}
         >
             <span class="vault-icon" style="background: {vault_color(active_vault || '')}">
                 {(active_vault || '?')[0].toUpperCase()}
@@ -123,7 +117,7 @@
                         >
                             <button
                                 class="vault-item-main"
-                                onclick={() => switch_vault(vault.name)}
+                                onclick={() => switch_vault(vault)}
                             >
                                 <span class="vault-icon small" style="background: {vault_color(vault.name)}">
                                     {vault.name[0].toUpperCase()}
@@ -133,6 +127,9 @@
                                         {vault.name}
                                         {#if vault.is_default}
                                             <span class="badge default">DEFAULT</span>
+                                        {/if}
+                                        {#if vault.from_env}
+                                            <span class="badge env">{vault.from_env}</span>
                                         {/if}
                                         {#if !vault.initialized}
                                             <span class="badge warning">NOT INIT</span>
@@ -161,40 +158,18 @@
                     {/each}
                 </div>
 
-                {#if show_add}
-                    <div class="add-vault-form">
-                        <input
-                            type="text"
-                            placeholder="Vault name"
-                            bind:value={new_name}
-                        >
-                        <input
-                            type="text"
-                            placeholder="Absolute path to vault directory"
-                            bind:value={new_path}
-                        >
-                        {#if add_error}
-                            <span class="add-error">{add_error}</span>
-                        {/if}
-                        <div class="add-form-actions">
-                            <button class="ghost" onclick={() => { show_add = false; add_error = '' }}>
-                                Cancel
-                            </button>
-                            <button class="primary small" onclick={add_vault}>
-                                Register
-                            </button>
-                        </div>
-                    </div>
-                {:else}
-                    <div class="dropdown-footer">
-                        <button class="add-vault-btn" onclick={() => { show_add = true }}>
-                            <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" width="11" height="11">
-                                <path d="M7 2v10M2 7h10" />
-                            </svg>
-                            Register Vault
-                        </button>
-                    </div>
-                {/if}
+                <div class="dropdown-footer">
+                    <button
+                        class="add-vault-btn"
+                        disabled={creating}
+                        onclick={create_vault}
+                    >
+                        <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" width="11" height="11">
+                            <path d="M7 2v10M2 7h10" />
+                        </svg>
+                        {creating ? 'Creating...' : 'Create Vault'}
+                    </button>
+                </div>
             </div>
         {/if}
     </div>
@@ -385,6 +360,11 @@
         color: var(--accent);
     }
 
+    .badge.env {
+        background: rgba(78, 204, 163, 0.15);
+        color: var(--success);
+    }
+
     .badge.warning {
         background: rgba(240, 160, 48, 0.15);
         color: var(--warning);
@@ -449,33 +429,8 @@
         transform: none;
     }
 
-    .add-vault-form {
-        border-top: 1px solid var(--border);
-        padding: 10px;
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-    }
-
-    .add-vault-form input {
-        font-size: 12px;
-        padding: 6px 8px;
-    }
-
-    .add-error {
-        font-size: 11px;
-        color: var(--accent);
-    }
-
-    .add-form-actions {
-        display: flex;
-        justify-content: flex-end;
-        gap: 6px;
-        margin-top: 2px;
-    }
-
-    .add-form-actions button {
-        font-size: 11px;
-        padding: 4px 10px;
+    .add-vault-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
     }
 </style>

@@ -71,6 +71,7 @@
                 </div>
             </div>
         {:else}
+            {#key refresh_key}
             {#if view === 'dashboard'}
                 <DashboardView status={vault_status} onnavigate={navigate} />
             {:else if view === 'secrets'}
@@ -91,9 +92,7 @@
                         <SecretForm onsubmit={on_secret_added} />
                     {/if}
 
-                    {#key refresh_key}
-                        <SecretList {filter} />
-                    {/key}
+                    <SecretList {filter} />
                 </div>
             {:else if view === 'users'}
                 <UserList />
@@ -104,6 +103,7 @@
             {:else if view === 'introduction'}
                 <IntroductionView />
             {/if}
+            {/key}
         {/if}
     </main>
 </div>

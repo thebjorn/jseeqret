@@ -31,6 +31,14 @@
     revealedKeys = next
   }
 
+  let copied_idx = $state(null)
+
+  async function copy_value(secret, idx) {
+      await navigator.clipboard.writeText(String(secret.value))
+      copied_idx = idx
+      setTimeout(() => { if (copied_idx === idx) copied_idx = null }, 1500)
+  }
+
   async function removeSecret(secret) {
     if (!confirm(`Remove ${secret.app}:${secret.env}:${secret.key}?`)) return
     try {
@@ -139,9 +147,12 @@
             </code>
           </td>
           <td class="type">{secret.type}</td>
-          <td>
+          <td class="actions">
+            <button class="copy" onclick={() => copy_value(secret, i)} title="Copy value">
+              {copied_idx === i ? '✓' : '⎘'}
+            </button>
             <button class="delete" onclick={() => removeSecret(secret)} title="Remove">
-              x
+              ×
             </button>
           </td>
         </tr>
@@ -181,6 +192,23 @@
   .type {
     color: var(--text-muted);
     font-size: 13px;
+  }
+
+  .actions {
+    white-space: nowrap;
+  }
+
+  .copy {
+    background: transparent;
+    color: var(--text-muted);
+    padding: 4px 8px;
+    font-size: 14px;
+    border-radius: 4px;
+  }
+
+  .copy:hover {
+    background: rgba(78, 204, 163, 0.15);
+    color: var(--success);
   }
 
   .delete {

@@ -19,6 +19,7 @@ const api = {
     addVault: (data) => ipcRenderer.invoke('vaults:add', data),
     removeVault: (data) => ipcRenderer.invoke('vaults:remove', data),
     switchVault: (data) => ipcRenderer.invoke('vaults:switch', data),
+    createVault: () => ipcRenderer.invoke('vaults:create'),
     getDefaultVault: () => ipcRenderer.invoke('vaults:default'),
     checkForUpdate: () => ipcRenderer.invoke('app:check-update'),
     installUpdate: () => ipcRenderer.invoke('app:install-update'),
