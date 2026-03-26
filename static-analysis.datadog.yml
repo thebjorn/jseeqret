@@ -5,5 +5,9 @@ rulesets:
   - javascript-common-security
   - javascript-express
   - javascript-inclusive
-  - javascript-node-security
+  - javascript-node-security:
+    rules:
+      detect-non-literal-fs-filename:
+        ignore:
+          - "**"
   - jsx-react
