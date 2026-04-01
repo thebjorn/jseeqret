@@ -11,7 +11,14 @@ This is the documentation for developers working on the project. It includes inf
 - [Master Vault](master-vault/index.md) — Centralized vault design and trade-offs
 - [Vault Hierarchy](vault-hierarchy/index.md) — Web of trust and granular access control
 - [Auto-Rotation](auto-rotation/index.md) — Secret expiration and rotation
+- [Linked Vault](linked-vault/index.md) — Keeping multiple personal vaults in sync
+- [Sync-Merge](sync-merge/index.md) — Conflict resolution algorithm for vault synchronization
 
 
-## open issues
-- how can a user request a secret from another user? For example, if Alice needs a secret that Bob has, how can she do that securely?
+## Feature Plans
+
+- [Vault Architecture Roadmap](feature-plans/vault-architecture-roadmap/README.md) — Comparative analysis of three plans (Incremental, Vault Service, Federated) with recommended phased roadmap
+
+
+## Open Issues
+- ~~how can a user request a secret from another user?~~ → Addressed in [Vault-to-Vault](vault-to-vault/index.md) Phase 4 (secret request protocol)
