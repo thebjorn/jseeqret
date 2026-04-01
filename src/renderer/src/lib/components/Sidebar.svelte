@@ -1,6 +1,30 @@
 <script>
-    let { view = 'dashboard', onnavigate, status = null } = $props()
-    
+    import VaultSwitcher from './VaultSwitcher.svelte'
+
+    let { view = 'dashboard', onnavigate, status = null, onvaultswitch } = $props()
+
+    let update_status = $state(null)
+
+    $effect(() => {
+        const unsubscribe = window.api.onUpdateStatus?.((data) => {
+            update_status = data
+        })
+        return () => unsubscribe?.()
+    })
+
+    async function check_for_update() {
+        update_status = { status: 'checking' }
+        try {
+            await window.api.checkForUpdate()
+        } catch (e) {
+            update_status = { status: 'error', message: e.message }
+        }
+    }
+
+    function install_update() {
+        window.api.installUpdate()
+    }
+
     const nav_items = [
         { id: 'dashboard', label: 'Dashboard', icon: 'grid' },
         { id: 'secrets', label: 'Secrets', icon: 'key' },
@@ -18,10 +42,18 @@
             <path d="M7 11V7a5 5 0 0 1 10 0v4" />
         </svg>
         <span class="brand-text">jseeqret</span>
+        {#if status?.version}
+            <span class="version">v{status.version}</span>
+        {/if}
     </div>
 
+    <VaultSwitcher
+        active_vault={status?.activeVault}
+        onswitch={onvaultswitch}
+    />
+
     <nav>
-        {#each nav_items as item}
+        {#each nav_items as item (item.id)}
             <button
                 class="nav-item"
                 class:active={view === item.id}
@@ -64,6 +96,30 @@
                 </div>
             {/if}
         {/if}
+
+        <div class="update-section">
+            {#if update_status?.status === 'checking'}
+                <span class="update-msg">Checking...</span>
+            {:else if update_status?.status === 'available' || update_status?.status === 'downloading'}
+                <span class="update-msg">
+                    {update_status.status === 'downloading'
+                        ? `Downloading ${update_status.percent ?? 0}%`
+                        : `v${update_status.version} available`}
+                </span>
+            {:else if update_status?.status === 'downloaded'}
+                <button class="update-btn ready" onclick={install_update}>
+                    Install v{update_status.version} & restart
+                </button>
+            {:else if update_status?.status === 'up-to-date'}
+                <span class="update-msg">Up to date</span>
+            {:else if update_status?.status === 'error'}
+                <span class="update-msg error" title={update_status.message}>Update failed</span>
+            {:else}
+                <button class="update-btn" onclick={check_for_update}>
+                    Check for updates
+                </button>
+            {/if}
+        </div>
     </div>
 </aside>
 
@@ -186,5 +242,52 @@
         font-family: var(--font-mono);
         font-size: 13px;
         color: var(--success);
+    }
+
+    .version {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--text-muted);
+        opacity: 0.5;
+        align-self: flex-end;
+        margin-bottom: 2px;
+    }
+
+    .update-section {
+        margin-top: 4px;
+    }
+
+    .update-btn {
+        width: 100%;
+        padding: 6px 10px;
+        background: transparent;
+        color: var(--text-muted);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        font-size: 11px;
+        font-family: var(--font-mono);
+        cursor: pointer;
+        transition: all var(--transition);
+    }
+
+    .update-btn:hover {
+        color: var(--text);
+        border-color: var(--accent);
+    }
+
+    .update-btn.ready {
+        background: rgba(233, 69, 96, 0.15);
+        color: var(--accent);
+        border-color: var(--accent);
+    }
+
+    .update-msg {
+        font-size: 11px;
+        font-family: var(--font-mono);
+        color: var(--text-muted);
+    }
+
+    .update-msg.error {
+        color: var(--danger, #e94560);
     }
 </style>

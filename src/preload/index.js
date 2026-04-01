@@ -15,6 +15,19 @@ const api = {
     importSecrets: (opts) => ipcRenderer.invoke('secrets:import', opts),
     getIntroduction: () => ipcRenderer.invoke('vault:introduction'),
     getSerializers: () => ipcRenderer.invoke('serializers:list'),
+    listVaults: () => ipcRenderer.invoke('vaults:list'),
+    addVault: (data) => ipcRenderer.invoke('vaults:add', data),
+    removeVault: (data) => ipcRenderer.invoke('vaults:remove', data),
+    switchVault: (data) => ipcRenderer.invoke('vaults:switch', data),
+    createVault: () => ipcRenderer.invoke('vaults:create'),
+    getDefaultVault: () => ipcRenderer.invoke('vaults:default'),
+    checkForUpdate: () => ipcRenderer.invoke('app:check-update'),
+    installUpdate: () => ipcRenderer.invoke('app:install-update'),
+    onUpdateStatus: (callback) => {
+        const handler = (_event, data) => callback(data)
+        ipcRenderer.on('update:status', handler)
+        return () => ipcRenderer.removeListener('update:status', handler)
+    },
 }
 
 if (process.contextIsolated) {

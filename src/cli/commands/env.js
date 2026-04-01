@@ -1,9 +1,13 @@
 import fs from 'fs'
 import path from 'path'
+import { createRequire } from 'module'
 import { Command } from 'commander'
 import { SqliteStorage } from '../../core/sqlite-storage.js'
 import { FilterSpec } from '../../core/filter.js'
 import { require_vault } from '../utils.js'
+
+const require = createRequire(import.meta.url)
+const { version: pkg_version } = require('../../../package.json')
 
 /**
  * Parse version requirement like "@seeqret>=0.3".
@@ -46,7 +50,6 @@ export const env_command = new Command('env')
     .action(async () => {
         require_vault()
 
-        const pkg_version = '0.5.1'
         const template_path = path.join(process.cwd(), 'env.template')
 
         if (!fs.existsSync(template_path)) {

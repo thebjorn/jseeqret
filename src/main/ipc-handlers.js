@@ -1,24 +1,63 @@
-import { ipcMain } from 'electron'
+import { createRequire } from 'module'
+import fs from 'fs'
+import path from 'path'
+import os from 'os'
+import { ipcMain, dialog, BrowserWindow } from 'electron'
 import { SqliteStorage } from '../core/sqlite-storage.js'
+
+const require = createRequire(import.meta.url)
+const { version: pkg_version } = require('../../package.json')
 import { FilterSpec } from '../core/filter.js'
 import { Secret } from '../core/models/secret.js'
 import { User } from '../core/models/user.js'
 import { is_initialized, get_seeqret_dir, current_user } from '../core/vault.js'
-import { load_private_key_str, load_public_key_str } from '../core/crypto/utils.js'
-import { decode_key } from '../core/crypto/nacl.js'
+import {
+    load_private_key_str, load_public_key_str,
+    generate_symmetric_key, generate_and_save_key_pair,
+} from '../core/crypto/utils.js'
+import { decode_key, encode_key } from '../core/crypto/nacl.js'
 import { get_serializer, list_serializers } from '../core/serializers/index.js'
+import {
+    registry_list, registry_add, registry_remove,
+    registry_use, registry_default, registry_resolve,
+} from '../core/vault-registry.js'
+import { run_migrations } from '../core/migrations.js'
+import { harden_vault_windows } from '../core/fileutils.js'
+
+/**
+ * Resolve vault dir from registry default first, falling back to
+ * get_seeqret_dir() (which prioritizes env vars).
+ */
+function get_active_vault_dir() {
+    const default_name = registry_default()
+    if (default_name) {
+        const resolved = registry_resolve(default_name)
+        if (resolved) return resolved
+    }
+    return get_seeqret_dir()
+}
 
 function get_storage() {
-    return new SqliteStorage()
+    return new SqliteStorage('seeqrets.db', get_active_vault_dir())
 }
 
 export function register_ipc_handlers() {
     ipcMain.handle('vault:status', () => {
-        const initialized = is_initialized()
+        let vault_dir
+        let initialized = false
+        try {
+            vault_dir = get_active_vault_dir()
+            initialized = fs.existsSync(vault_dir)
+                && fs.existsSync(path.join(vault_dir, 'seeqrets.db'))
+        } catch {
+            vault_dir = null
+        }
         return {
             initialized,
-            vaultDir: initialized ? get_seeqret_dir() : null,
+            vaultDir: initialized ? vault_dir : null,
             currentUser: current_user(),
+            version: pkg_version,
+            activeVault: registry_default(),
         }
     })
 
@@ -40,7 +79,8 @@ export function register_ipc_handlers() {
 
     ipcMain.handle('secrets:add', async (_event, { app, env, key, value, type }) => {
         const storage = get_storage()
-        const secret = new Secret({ app, env, key, plaintext_value: value, type: type || 'str' })
+        const vault_dir = get_active_vault_dir()
+        const secret = new Secret({ app, env, key, plaintext_value: value, type: type || 'str', vault_dir })
         await storage.add_secret(secret)
         return { ok: true }
     })
@@ -76,7 +116,7 @@ export function register_ipc_handlers() {
     })
 
     ipcMain.handle('vault:keys', () => {
-        const vault_dir = get_seeqret_dir()
+        const vault_dir = get_active_vault_dir()
         return {
             privateKey: load_private_key_str(vault_dir),
             publicKey: load_public_key_str(vault_dir),
@@ -86,7 +126,7 @@ export function register_ipc_handlers() {
     ipcMain.handle('secrets:export', async (_event, { to, filter, serializer, system }) => {
         const storage = get_storage()
         const admin = await storage.fetch_admin()
-        const vault_dir = get_seeqret_dir()
+        const vault_dir = get_active_vault_dir()
         const sender_private_key = decode_key(load_private_key_str(vault_dir))
         const SerializerClass = get_serializer(serializer)
 
@@ -114,7 +154,7 @@ export function register_ipc_handlers() {
 
     ipcMain.handle('secrets:import', async (_event, { from_user, serializer, content }) => {
         const storage = get_storage()
-        const vault_dir = get_seeqret_dir()
+        const vault_dir = get_active_vault_dir()
         const receiver_private_key = decode_key(load_private_key_str(vault_dir))
         const SerializerClass = get_serializer(serializer)
 
@@ -170,5 +210,100 @@ export function register_ipc_handlers() {
             tag: cls.tag,
             description: cls.description,
         }))
+    })
+
+    // -- Vault registry ------------------------------------------------
+
+    ipcMain.handle('vaults:list', () => {
+        const vaults = registry_list().map(v => ({
+            ...v,
+            initialized: fs.existsSync(path.join(v.path, 'seeqrets.db')),
+        }))
+
+        // Include vaults from JSEEQRET / SEEQRET env vars
+        const registered_paths = new Set(vaults.map(v => path.resolve(v.path)))
+        for (const env_key of ['JSEEQRET', 'SEEQRET']) {
+            const value = process.env[env_key]
+            if (!value) continue
+            const is_abs = path.isAbsolute(value) || value.startsWith('.')
+                || value.includes('/') || value.includes('\\')
+            if (!is_abs) continue  // name-based — already in registry
+            const resolved = path.resolve(value)
+            if (registered_paths.has(resolved)) continue
+            registered_paths.add(resolved)
+            vaults.push({
+                name: path.basename(resolved),
+                path: resolved,
+                is_default: false,
+                initialized: fs.existsSync(path.join(resolved, 'seeqrets.db')),
+                from_env: env_key,
+            })
+        }
+
+        return vaults
+    })
+
+    ipcMain.handle('vaults:add', (_event, { name, vault_path }) => {
+        registry_add(name, vault_path)
+        return { ok: true }
+    })
+
+    ipcMain.handle('vaults:remove', (_event, { name }) => {
+        if (!registry_remove(name)) {
+            throw new Error(`Vault "${name}" is not registered`)
+        }
+        return { ok: true }
+    })
+
+    ipcMain.handle('vaults:switch', (_event, { name, vault_path }) => {
+        // If switching to an env-var vault not yet in registry, register it
+        if (vault_path) {
+            registry_add(name, vault_path)
+        }
+        registry_use(name)
+        return { ok: true }
+    })
+
+    ipcMain.handle('vaults:create', async () => {
+        const win = BrowserWindow.getFocusedWindow()
+        const result = await dialog.showOpenDialog(win, {
+            title: 'Choose directory for new vault',
+            properties: ['openDirectory', 'createDirectory'],
+        })
+
+        if (result.canceled || result.filePaths.length === 0) {
+            return { canceled: true }
+        }
+
+        const chosen_dir = result.filePaths[0]
+        const vault_dir = path.join(chosen_dir, 'seeqret')
+
+        if (!fs.existsSync(vault_dir)) {
+            fs.mkdirSync(vault_dir, { mode: 0o770, recursive: true })
+        }
+
+        harden_vault_windows(vault_dir)
+        generate_symmetric_key(vault_dir)
+        const key_pair = generate_and_save_key_pair(vault_dir)
+        const pubkey = encode_key(key_pair.publicKey)
+
+        const username = current_user()
+        const email = `${username}@${os.hostname()}`
+        await run_migrations(vault_dir, username, email, pubkey)
+
+        // Register with basename of chosen dir as vault name
+        const vault_name = path.basename(chosen_dir)
+        registry_add(vault_name, vault_dir)
+        registry_use(vault_name)
+
+        return {
+            canceled: false,
+            name: vault_name,
+            path: vault_dir,
+        }
+    })
+
+    ipcMain.handle('vaults:default', () => {
+        return registry_default()
     })
 }

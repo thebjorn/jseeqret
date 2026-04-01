@@ -1,6 +1,6 @@
 {
   "name": "jseeqret",
-  "version": "0.5.2",
+  "version": "0.5.7",
   "type": "module",
   "description": "Secure secrets manager - JavaScript/Electron/Svelte5 port of seeqret",
   "author": "thebjorn",
@@ -21,7 +21,7 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
-    "dist": "electron-vite build && electron-builder --win",
+    "dist": "electron-vite build && electron-builder --win --publish always",
     "dist:nsis": "electron-vite build && electron-builder --win nsis",
     "dist:portable": "electron-vite build && electron-builder --win portable",
     "cli": "node ./src/cli/index.js",

@@ -1,3 +1,4 @@
+.claude/worktrees
 node_modules/
 out/
 dist/
@@ -8,4 +9,5 @@ seeqret/
 *.bat
 coverage/
 docs/
+plantuml.jar
 .claude/settings.local.json

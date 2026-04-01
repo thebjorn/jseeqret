@@ -1,7 +1,7 @@
 # jseeqret
 
 ![cicd](https://github.com/thebjorn/jseeqret/actions/workflows/ci.yml/badge.svg)
-[![codecov](https://codecov.io/gh/thebjorn/jseeqret/graph/badge.svg?token=5PQOZLTSYD)](https://codecov.io/gh/thebjorn/seeqret)
+[![codecov](https://codecov.io/gh/thebjorn/jseeqret/graph/badge.svg?token=5PQOZLTSYD)](https://codecov.io/gh/thebjorn/jseeqret)
 [![downloads](https://img.shields.io/npm/dt/jseeqret)](https://www.npmjs.com/package/jseeqret)
 [![Socket Badge](https://socket.dev/api/badge/npm/package/jseeqret/0.1.0)](https://socket.dev/npm/package/jseeqret/overview/0.1.0)
 

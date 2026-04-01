@@ -1,0 +1,3 @@
+# Vault Hierarchy (web of trust)
+
+In a shared vault environment, there are multiple users who need to access secrets. How do we manage access to secrets in a way that is secure and scalable? One approach is to use a vault hierarchy, where there are multiple vaults that are organized in a tree structure. Each vault can have its own set of secrets and its own set of users who have access to those secrets. This allows us to manage access to secrets in a more granular way, and it also allows us to scale the vault system as the number of users and secrets grows.
