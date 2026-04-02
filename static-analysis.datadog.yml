@@ -1,6 +1,9 @@
 schema-version: v1
 rulesets:
   - javascript-best-practices
+    rules:
+      no-console-log:
+        enabled: false
   - javascript-browser-security
   - javascript-common-security
   - javascript-express
