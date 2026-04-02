@@ -101,11 +101,11 @@ Deliver secrets to a recipient's inbox without manual file transfer.
 
 Each user has an **inbox directory** -- a folder where incoming encrypted exports are deposited. The inbox can be:
 
-| Location | Example | Use Case |
-|----------|---------|----------|
+| Location          | Example                                | Use Case                       |
+| ----------------- | -------------------------------------- | ------------------------------ |
 | Cloud sync folder | `C:\Users\bp\OneDrive\.jseeqret-inbox` | Remote delivery via cloud sync |
-| Network share | `\\fileserver\inboxes\bob` | Same-network delivery |
-| Local directory | `C:\Users\bp\.jseeqret\inbox` | Manual transfer (USB, etc.) |
+| Network share     | `\\fileserver\inboxes\bob`             | Same-network delivery          |
+| Local directory   | `C:\Users\bp\.jseeqret\inbox`          | Manual transfer (USB, etc.)    |
 
 ### Inbox Registration
 

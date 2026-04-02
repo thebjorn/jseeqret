@@ -71,13 +71,13 @@ The 1-30 second cloud sync delay means there is a window where one vault has wri
 
 ## Summary
 
-| # | Concern | Risk | Action Required |
-|---|---------|------|-----------------|
-| 1 | Cloud sync folder as attack surface | High | Encrypt manifest, warn about cloud account security |
-| 2 | Manifest exposes secret inventory | Medium | Encrypt manifest in v1 |
-| 3 | Stale outbox files persist | Medium | Define cleanup protocol |
-| 4 | Lockfile bypass/race conditions | Low | Heartbeat for long syncs |
-| 5 | Unsigned manifests allow tampering | High | Sign manifests with vault key |
-| 6 | Shared sync key weakens isolation | Medium | Use NaCl per-message encryption |
-| 7 | Path traversal in sync address | Medium | Validate and canonicalize paths |
-| 8 | Cloud sync latency window | Low | Document as eventual consistency |
+| #   | Concern                             | Risk   | Action Required                                     |
+| --- | ----------------------------------- | ------ | --------------------------------------------------- |
+| 1   | Cloud sync folder as attack surface | High   | Encrypt manifest, warn about cloud account security |
+| 2   | Manifest exposes secret inventory   | Medium | Encrypt manifest in v1                              |
+| 3   | Stale outbox files persist          | Medium | Define cleanup protocol                             |
+| 4   | Lockfile bypass/race conditions     | Low    | Heartbeat for long syncs                            |
+| 5   | Unsigned manifests allow tampering  | High   | Sign manifests with vault key                       |
+| 6   | Shared sync key weakens isolation   | Medium | Use NaCl per-message encryption                     |
+| 7   | Path traversal in sync address      | Medium | Validate and canonicalize paths                     |
+| 8   | Cloud sync latency window           | Low    | Document as eventual consistency                    |

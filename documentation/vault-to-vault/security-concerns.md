@@ -89,13 +89,13 @@ When Alice fulfills Bob's request, the plan doesn't mention checking whether Bob
 
 ## Summary
 
-| # | Concern | Risk | Action Required |
-|---|---------|------|-----------------|
-| 1 | No forward secrecy | High | Delete exports after import, plan ephemeral keys |
-| 2 | Inbox is a persistent target | High | Auto-purge processed files |
-| 3 | Key trust depends on initial exchange | Medium | Show key fingerprints on add |
-| 4 | No replay protection | Medium | Reject stale imports by default |
-| 5 | Sender identity not signed | Medium | Sign exports with sender's key |
-| 6 | Inbox path discovery | Low | Avoid predictable paths |
-| 7 | Bulk export over-sharing | Medium | Confirm before sending, show match count |
-| 8 | Request fulfillment without scope check | Medium | Cross-reference ACL on fulfill |
+| #   | Concern                                 | Risk   | Action Required                                  |
+| --- | --------------------------------------- | ------ | ------------------------------------------------ |
+| 1   | No forward secrecy                      | High   | Delete exports after import, plan ephemeral keys |
+| 2   | Inbox is a persistent target            | High   | Auto-purge processed files                       |
+| 3   | Key trust depends on initial exchange   | Medium | Show key fingerprints on add                     |
+| 4   | No replay protection                    | Medium | Reject stale imports by default                  |
+| 5   | Sender identity not signed              | Medium | Sign exports with sender's key                   |
+| 6   | Inbox path discovery                    | Low    | Avoid predictable paths                          |
+| 7   | Bulk export over-sharing                | Medium | Confirm before sending, show match count         |
+| 8   | Request fulfillment without scope check | Medium | Cross-reference ACL on fulfill                   |

@@ -4,16 +4,16 @@ This document analyzes seven interconnected feature areas for jseeqret's evoluti
 
 ## Feature Areas Under Analysis
 
-| # | Feature | Core Question |
-|---|---------|--------------|
-| 1 | [Server Vault](../../server-vault/) | How does a web server read secrets at runtime? |
-| 2 | [Vault-to-Vault](../../vault-to-vault/) | How do two vaults exchange secrets securely? |
-| 3 | [Shared Vault](../../shared-vault/) | How do multiple users access one vault? |
-| 4 | [Multi-Vault](../../multi-vault/) | How does one user manage multiple vaults? |
-| 5 | [Master Vault](../../master-vault/) | Should there be one vault to rule them all? |
-| 6 | [Vault Hierarchy](../../vault-hierarchy/) | How to organize vaults in a trust tree? |
-| 7 | [Auto-Rotation](../../auto-rotation/) | How to handle secret expiration and rotation? |
-| -- | Secret Request (open issue) | How can Alice request a secret from Bob? |
+| #   | Feature                                   | Core Question                                  |
+| --- | ----------------------------------------- | ---------------------------------------------- |
+| 1   | [Server Vault](../../server-vault/)       | How does a web server read secrets at runtime? |
+| 2   | [Vault-to-Vault](../../vault-to-vault/)   | How do two vaults exchange secrets securely?   |
+| 3   | [Shared Vault](../../shared-vault/)       | How do multiple users access one vault?        |
+| 4   | [Multi-Vault](../../multi-vault/)         | How does one user manage multiple vaults?      |
+| 5   | [Master Vault](../../master-vault/)       | Should there be one vault to rule them all?    |
+| 6   | [Vault Hierarchy](../../vault-hierarchy/) | How to organize vaults in a trust tree?        |
+| 7   | [Auto-Rotation](../../auto-rotation/)     | How to handle secret expiration and rotation?  |
+| --- | Secret Request (open issue)               | How can Alice request a secret from Bob?       |
 
 ## The Three Plans
 
@@ -27,41 +27,41 @@ This document analyzes seven interconnected feature areas for jseeqret's evoluti
 
 How each plan addresses each feature area:
 
-| Feature | Plan A | Plan B | Plan C |
-|---------|--------|--------|--------|
-| **Server Vault** | Existing `server init` + SSH admin | Vault service = server vault | Vault service as sync transport |
-| **Vault-to-Vault** | NaCl export + SSH pipe | Service-to-service API sync | Trust-based gossip sync protocol |
-| **Shared Vault** | Shared filesystem + advisory ACL | Service-mediated, real ACL | Individual vaults + trust delegation |
-| **Multi-Vault** | Local registry (vaults.json) | Multiple service instances | Federation of vault identities |
-| **Master Vault** | Not implemented (by design) | Not implemented (by design) | Emergent from hierarchy root |
-| **Vault Hierarchy** | Not implemented | Not implemented | Trust link DAG with scope inheritance |
-| **Auto-Rotation** | Schema columns + audit CLI | Schema + SSE notifications | Schema + propagation through trust network |
-| **Secret Request** | File-based signed request | API endpoint + SSE notification | Request propagation through trust graph |
+| Feature             | Plan A                             | Plan B                          | Plan C                                     |
+| ------------------- | ---------------------------------- | ------------------------------- | ------------------------------------------ |
+| **Server Vault**    | Existing `server init` + SSH admin | Vault service = server vault    | Vault service as sync transport            |
+| **Vault-to-Vault**  | NaCl export + SSH pipe             | Service-to-service API sync     | Trust-based gossip sync protocol           |
+| **Shared Vault**    | Shared filesystem + advisory ACL   | Service-mediated, real ACL      | Individual vaults + trust delegation       |
+| **Multi-Vault**     | Local registry (vaults.json)       | Multiple service instances      | Federation of vault identities             |
+| **Master Vault**    | Not implemented (by design)        | Not implemented (by design)     | Emergent from hierarchy root               |
+| **Vault Hierarchy** | Not implemented                    | Not implemented                 | Trust link DAG with scope inheritance      |
+| **Auto-Rotation**   | Schema columns + audit CLI         | Schema + SSE notifications      | Schema + propagation through trust network |
+| **Secret Request**  | File-based signed request          | API endpoint + SSE notification | Request propagation through trust graph    |
 
 ## Comparative Evaluation
 
-| Criterion | Plan A: Incremental | Plan B: Vault Service | Plan C: Federated |
-|-----------|--------------------|-----------------------|-------------------|
-| **Simplicity** | Best. No new services, no new protocols. Everything is files + CLI commands. | Medium. One new service, but conceptually clean. | Worst. Many new concepts (trust links, sync protocol, vault identity). |
-| **Security** | Advisory ACL only. Anyone with `seeqret.key` bypasses it. | Real access control. Service mediates all access. NaCl auth. | Cryptographic enforcement via trust links. Strongest model. |
-| **Python Compatibility** | Best. No protocol changes. Python reads same files. | Medium. Python needs a client library for the HTTP API, but can still use local file access. | Worst. Python must implement trust, sync, and identity to participate. |
-| **Performance** | Best. In-process SQLite reads, no network. | Worst for reads (network call per request). Caching helps. | Good for reads (local vault). Sync adds background work. |
-| **Operational Complexity** | Lowest. No processes to manage. | Medium. Must run/monitor service processes. | Medium-High. Must manage trust links + sync schedules. |
-| **User Experience** | Good. Familiar CLI patterns. | Good. Clean API. GUI can talk to service directly. | Steeper learning curve. Trust management is new. |
-| **Extensibility** | Limited. Hard to add real-time features. | Good. Service is a natural extension point. | Best. Trust network supports arbitrary topologies. |
-| **Testability** | Best. Pure functions, no external deps. | Good. HTTP endpoints are testable. Need to mock auth. | Hardest. Need to test sync, trust resolution, multi-vault scenarios. |
-| **Scope** | ~8 new files, 1-2 migrations | ~19 new files, 1 new dep, 1-2 migrations | ~14 new files, 2-3 migrations |
+| Criterion                  | Plan A: Incremental                                                          | Plan B: Vault Service                                                                        | Plan C: Federated                                                      |
+| -------------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| **Simplicity**             | Best. No new services, no new protocols. Everything is files + CLI commands. | Medium. One new service, but conceptually clean.                                             | Worst. Many new concepts (trust links, sync protocol, vault identity). |
+| **Security**               | Advisory ACL only. Anyone with `seeqret.key` bypasses it.                    | Real access control. Service mediates all access. NaCl auth.                                 | Cryptographic enforcement via trust links. Strongest model.            |
+| **Python Compatibility**   | Best. No protocol changes. Python reads same files.                          | Medium. Python needs a client library for the HTTP API, but can still use local file access. | Worst. Python must implement trust, sync, and identity to participate. |
+| **Performance**            | Best. In-process SQLite reads, no network.                                   | Worst for reads (network call per request). Caching helps.                                   | Good for reads (local vault). Sync adds background work.               |
+| **Operational Complexity** | Lowest. No processes to manage.                                              | Medium. Must run/monitor service processes.                                                  | Medium-High. Must manage trust links + sync schedules.                 |
+| **User Experience**        | Good. Familiar CLI patterns.                                                 | Good. Clean API. GUI can talk to service directly.                                           | Steeper learning curve. Trust management is new.                       |
+| **Extensibility**          | Limited. Hard to add real-time features.                                     | Good. Service is a natural extension point.                                                  | Best. Trust network supports arbitrary topologies.                     |
+| **Testability**            | Best. Pure functions, no external deps.                                      | Good. HTTP endpoints are testable. Need to mock auth.                                        | Hardest. Need to test sync, trust resolution, multi-vault scenarios.   |
+| **Scope**                  | ~8 new files, 1-2 migrations                                                 | ~19 new files, 1 new dep, 1-2 migrations                                                     | ~14 new files, 2-3 migrations                                          |
 
 ### Pros and Cons Summary
 
-| | Plan A | Plan B | Plan C |
-|---|--------|--------|--------|
-| **Pro** | Minimal risk. Ship features independently. | Real access control, not advisory. | Strongest security model. |
-| **Pro** | No new dependencies. | Real-time rotation notifications via SSE. | Offline-first -- works without connectivity. |
-| **Pro** | Full Python compatibility preserved. | Clean client library for web servers. | Supports complex organizational structures. |
-| **Con** | Advisory ACL is weak for multi-user scenarios. | Operational burden of running a service. | High complexity; steep learning curve. |
-| **Con** | No real-time notifications. | Network latency for secret reads. | Major Python porting effort required. |
-| **Con** | SSH-based remote ops require SSH access. | Single point of failure per vault. | Conflict resolution can lose data (LWW). |
+|         | Plan A                                         | Plan B                                    | Plan C                                       |
+| ------- | ---------------------------------------------- | ----------------------------------------- | -------------------------------------------- |
+| **Pro** | Minimal risk. Ship features independently.     | Real access control, not advisory.        | Strongest security model.                    |
+| **Pro** | No new dependencies.                           | Real-time rotation notifications via SSE. | Offline-first -- works without connectivity. |
+| **Pro** | Full Python compatibility preserved.           | Clean client library for web servers.     | Supports complex organizational structures.  |
+| **Con** | Advisory ACL is weak for multi-user scenarios. | Operational burden of running a service.  | High complexity; steep learning curve.       |
+| **Con** | No real-time notifications.                    | Network latency for secret reads.         | Major Python porting effort required.        |
+| **Con** | SSH-based remote ops require SSH access.       | Single point of failure per vault.        | Conflict resolution can lose data (LWW).     |
 
 ## Feature Interaction Analysis
 

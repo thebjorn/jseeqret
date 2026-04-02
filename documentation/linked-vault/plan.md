@@ -110,12 +110,12 @@ The file transport uses a **shared intermediary directory** -- a folder that bot
 
 **Supported shared folder types:**
 
-| Type | Example Path | Notes |
-|------|-------------|-------|
-| Cloud sync folder | `C:\Users\bp\OneDrive\.seeqret-sync` | Most practical for the home/work scenario. Both machines sync via the cloud. |
-| Network share (UNC) | `\\fileserver\team\.seeqret-sync` | Works when both machines are on the same network. |
-| Mapped drive | `Z:\.seeqret-sync` | Same as UNC but with a drive letter. |
-| USB drive | `E:\.seeqret-sync` | Sneakernet -- sync by physically moving the drive. |
+| Type                | Example Path                         | Notes                                                                        |
+| ------------------- | ------------------------------------ | ---------------------------------------------------------------------------- |
+| Cloud sync folder   | `C:\Users\bp\OneDrive\.seeqret-sync` | Most practical for the home/work scenario. Both machines sync via the cloud. |
+| Network share (UNC) | `\\fileserver\team\.seeqret-sync`    | Works when both machines are on the same network.                            |
+| Mapped drive        | `Z:\.seeqret-sync`                   | Same as UNC but with a drive letter.                                         |
+| USB drive           | `E:\.seeqret-sync`                   | Sneakernet -- sync by physically moving the drive.                           |
 
 **Sync bundle structure:**
 

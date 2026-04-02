@@ -81,11 +81,11 @@ An `acl.json` file in the vault directory:
 
 ### Roles
 
-| Role | Permissions |
-|------|------------|
-| `admin` | Read, write, delete, manage ACL, manage users |
-| `read-write` | Read and write secrets matching the filter |
-| `read-only` | Read secrets matching the filter |
+| Role         | Permissions                                   |
+| ------------ | --------------------------------------------- |
+| `admin`      | Read, write, delete, manage ACL, manage users |
+| `read-write` | Read and write secrets matching the filter    |
+| `read-only`  | Read secrets matching the filter              |
 
 ### ACL Module
 
@@ -141,12 +141,12 @@ SQLite supports concurrent readers with a single writer when using WAL (Write-Ah
 
 ### Strategy by Access Pattern
 
-| Access Pattern | Strategy |
-|---------------|----------|
-| Shared local directory | WAL mode. Multiple readers, single writer with automatic retry. |
-| Network share (UNC path) | Lockfile coordination. Only one writer at a time; readers don't need the lock. |
-| Cloud sync folder | Not recommended for shared vaults (conflict-prone). Use [linked vault](../linked-vault/) instead. |
-| Vault service | Service serializes all writes. No concurrency issues at the database level. |
+| Access Pattern           | Strategy                                                                                          |
+| ------------------------ | ------------------------------------------------------------------------------------------------- |
+| Shared local directory   | WAL mode. Multiple readers, single writer with automatic retry.                                   |
+| Network share (UNC path) | Lockfile coordination. Only one writer at a time; readers don't need the lock.                    |
+| Cloud sync folder        | Not recommended for shared vaults (conflict-prone). Use [linked vault](../linked-vault/) instead. |
+| Vault service            | Service serializes all writes. No concurrency issues at the database level.                       |
 
 ### WAL Mode
 

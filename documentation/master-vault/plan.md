@@ -6,14 +6,14 @@
 
 ### Threat Model
 
-| Threat | Impact with Master Vault | Impact with Distributed Vaults |
-|--------|--------------------------|-------------------------------|
-| Vault server compromise | All secrets for the entire organization exposed | One team's or one project's secrets exposed |
-| Vault key (`seeqret.key`) leaked | All secrets decryptable | One vault's secrets decryptable |
-| Network outage to vault server | All applications unable to read secrets | Only applications depending on that specific vault affected |
-| Database corruption | All secrets lost (unless backed up) | One vault's secrets lost |
-| Admin error (accidental delete) | Potentially affects every secret | Scoped to one vault |
-| Key rotation | Must re-encrypt every secret in the organization | Scoped to one vault |
+| Threat                           | Impact with Master Vault                         | Impact with Distributed Vaults                              |
+| -------------------------------- | ------------------------------------------------ | ----------------------------------------------------------- |
+| Vault server compromise          | All secrets for the entire organization exposed  | One team's or one project's secrets exposed                 |
+| Vault key (`seeqret.key`) leaked | All secrets decryptable                          | One vault's secrets decryptable                             |
+| Network outage to vault server   | All applications unable to read secrets          | Only applications depending on that specific vault affected |
+| Database corruption              | All secrets lost (unless backed up)              | One vault's secrets lost                                    |
+| Admin error (accidental delete)  | Potentially affects every secret                 | Scoped to one vault                                         |
+| Key rotation                     | Must re-encrypt every secret in the organization | Scoped to one vault                                         |
 
 ### Availability Calculation
 
@@ -27,11 +27,11 @@ The master vault's downtime affects everyone simultaneously, making the perceive
 
 jseeqret uses sql.js (WASM SQLite) with in-process databases. This architecture is not designed for concurrent access from multiple machines:
 
-| Pattern | Concurrent Reads | Concurrent Writes | Network Access |
-|---------|-----------------|-------------------|----------------|
-| Local vault | Excellent (in-process) | Single writer (OK for CLI/GUI) | None needed |
-| Shared vault | Good (WAL mode) | Single writer with retry | Local filesystem or network share |
-| Master vault | Requires a service layer | Requires a service layer | Network to every client |
+| Pattern      | Concurrent Reads         | Concurrent Writes              | Network Access                    |
+| ------------ | ------------------------ | ------------------------------ | --------------------------------- |
+| Local vault  | Excellent (in-process)   | Single writer (OK for CLI/GUI) | None needed                       |
+| Shared vault | Good (WAL mode)          | Single writer with retry       | Local filesystem or network share |
+| Master vault | Requires a service layer | Requires a service layer       | Network to every client           |
 
 A master vault would require building the vault service (Plan B from the roadmap) as a prerequisite -- and then running it at high availability. This is significant infrastructure for a tool designed to be simple.
 
@@ -51,13 +51,13 @@ A master vault would require building the vault service (Plan B from the roadmap
 - CI/CD pipelines connect to their team's vault
 - Admins are per-team, not org-wide
 
-| Criterion | Master Vault | Distributed |
-|-----------|-------------|-------------|
-| Blast radius | 200 secrets | ~33 secrets |
-| Admin bottleneck | 1 person | 3 people (per-team) |
-| Infrastructure | Must run HA service | No services (file-based) |
-| Onboarding | Grant access to 1 vault | Grant access to team vault(s) |
-| Offboarding | Revoke access to 1 vault | Revoke from team vault(s), rotate team key |
+| Criterion        | Master Vault             | Distributed                                |
+| ---------------- | ------------------------ | ------------------------------------------ |
+| Blast radius     | 200 secrets              | ~33 secrets                                |
+| Admin bottleneck | 1 person                 | 3 people (per-team)                        |
+| Infrastructure   | Must run HA service      | No services (file-based)                   |
+| Onboarding       | Grant access to 1 vault  | Grant access to team vault(s)              |
+| Offboarding      | Revoke access to 1 vault | Revoke from team vault(s), rotate team key |
 
 ## Historical Context
 

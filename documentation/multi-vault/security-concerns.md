@@ -57,11 +57,11 @@ When `--vault` is omitted and no environment variable is set, the default vault 
 
 ## Summary
 
-| # | Concern | Risk | Action Required |
-|---|---------|------|-----------------|
-| 1 | Registry reveals vault locations | Medium | Restrict file permissions on creation |
-| 2 | Registry can redirect to fake vault | Medium | Cross-check vault identity on access |
-| 3 | `--vault` override in shared envs | Low | Log active vault in CLI output |
-| 4 | Concurrent registry writes | Low | Atomic writes are sufficient |
-| 5 | Name/path injection | Medium | Sanitize names, resolve symlinks |
-| 6 | Default vault confusion | Low | Display active vault prominently |
+| #   | Concern                             | Risk   | Action Required                       |
+| --- | ----------------------------------- | ------ | ------------------------------------- |
+| 1   | Registry reveals vault locations    | Medium | Restrict file permissions on creation |
+| 2   | Registry can redirect to fake vault | Medium | Cross-check vault identity on access  |
+| 3   | `--vault` override in shared envs   | Low    | Log active vault in CLI output        |
+| 4   | Concurrent registry writes          | Low    | Atomic writes are sufficient          |
+| 5   | Name/path injection                 | Medium | Sanitize names, resolve symlinks      |
+| 6   | Default vault confusion             | Low    | Display active vault prominently      |

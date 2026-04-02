@@ -81,13 +81,13 @@ True conflicts (identical timestamps, different hashes) default to local-wins. T
 
 ## Summary
 
-| # | Concern | Risk | Action Required |
-|---|---------|------|-----------------|
-| 1 | LWW silently overwrites secrets | High | Sync log + dry-run default for new links |
-| 2 | Tombstone manipulation deletes secrets | High | Sign tombstones, verify authority |
-| 3 | Clock skew exploits | Medium | Log warnings, consider version vectors |
-| 4 | Content hash doesn't prevent replay | Medium | Add monotonic version counter |
-| 5 | Sync log reveals change history | Medium | Don't store plaintext values in log |
-| 6 | Partial sync creates asymmetry | Medium | Don't commit local on remote failure |
-| 7 | GC causes zombie resurrection | Low | Warn on stale linked vaults |
-| 8 | Conflict resolution is silent | Low | Surface conflict warnings in CLI |
+| #   | Concern                                | Risk   | Action Required                          |
+| --- | -------------------------------------- | ------ | ---------------------------------------- |
+| 1   | LWW silently overwrites secrets        | High   | Sync log + dry-run default for new links |
+| 2   | Tombstone manipulation deletes secrets | High   | Sign tombstones, verify authority        |
+| 3   | Clock skew exploits                    | Medium | Log warnings, consider version vectors   |
+| 4   | Content hash doesn't prevent replay    | Medium | Add monotonic version counter            |
+| 5   | Sync log reveals change history        | Medium | Don't store plaintext values in log      |
+| 6   | Partial sync creates asymmetry         | Medium | Don't commit local on remote failure     |
+| 7   | GC causes zombie resurrection          | Low    | Warn on stale linked vaults              |
+| 8   | Conflict resolution is silent          | Low    | Surface conflict warnings in CLI         |

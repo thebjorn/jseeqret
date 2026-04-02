@@ -10,17 +10,17 @@ This is the **mechanism** that powers [linked vault](../linked-vault/) sync. It 
 
 Given vault **A** (local) and vault **B** (remote), for each secret identified by the tuple `(app, env, key)`:
 
-| State in A | State in B | Action |
-|-----------|-----------|--------|
-| Exists | Does not exist | Copy A → B |
-| Does not exist | Exists | Copy B → A |
-| Same value | Same value | No action |
-| Different value, A newer | Different value, B older | Update B with A's value |
-| Different value, B newer | Different value, A older | Update A with B's value |
-| Deleted (tombstone), deletion newer than B's last modification | Exists | Delete from B |
-| Exists | Deleted (tombstone), deletion newer than A's last modification | Delete from A |
-| Deleted, but B was modified after deletion | Exists (modified after deletion) | Keep B's value, resurrect in A |
-| Exists (modified after deletion) | Deleted, but A was modified after deletion | Keep A's value, resurrect in B |
+| State in A                                                     | State in B                                                     | Action                         |
+| -------------------------------------------------------------- | -------------------------------------------------------------- | ------------------------------ |
+| Exists                                                         | Does not exist                                                 | Copy A → B                     |
+| Does not exist                                                 | Exists                                                         | Copy B → A                     |
+| Same value                                                     | Same value                                                     | No action                      |
+| Different value, A newer                                       | Different value, B older                                       | Update B with A's value        |
+| Different value, B newer                                       | Different value, A older                                       | Update A with B's value        |
+| Deleted (tombstone), deletion newer than B's last modification | Exists                                                         | Delete from B                  |
+| Exists                                                         | Deleted (tombstone), deletion newer than A's last modification | Delete from A                  |
+| Deleted, but B was modified after deletion                     | Exists (modified after deletion)                               | Keep B's value, resurrect in A |
+| Exists (modified after deletion)                               | Deleted, but A was modified after deletion                     | Keep A's value, resurrect in B |
 
 "Newer" is determined by comparing `updated_at` timestamps (ISO 8601, UTC).
 
@@ -56,12 +56,12 @@ The default conflict resolution strategy. When two vaults have different values 
 
 ## Relationship to Other Features
 
-| Feature | Relationship |
-|---------|-------------|
-| [Linked Vault](../linked-vault/) | Linked vault is the user-facing feature; sync-merge is the engine underneath. |
-| [Vault-to-Vault](../vault-to-vault/) | Sync-merge can use the existing NaCl export/import as a transport layer. |
-| [Auto-Rotation](../auto-rotation/) | Rotated secrets have a new `updated_at` and propagate through sync naturally. Rotation metadata (`rotated_at`, `expires_at`) should be included in the manifest. |
-| [Shared Vault](../shared-vault/) | Shared vaults don't need sync-merge (everyone accesses the same database), but a shared vault could sync with a linked personal vault. |
+| Feature                              | Relationship                                                                                                                                                     |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Linked Vault](../linked-vault/)     | Linked vault is the user-facing feature; sync-merge is the engine underneath.                                                                                    |
+| [Vault-to-Vault](../vault-to-vault/) | Sync-merge can use the existing NaCl export/import as a transport layer.                                                                                         |
+| [Auto-Rotation](../auto-rotation/)   | Rotated secrets have a new `updated_at` and propagate through sync naturally. Rotation metadata (`rotated_at`, `expires_at`) should be included in the manifest. |
+| [Shared Vault](../shared-vault/)     | Shared vaults don't need sync-merge (everyone accesses the same database), but a shared vault could sync with a linked personal vault.                           |
 
 ## Open Questions
 

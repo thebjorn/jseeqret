@@ -62,12 +62,12 @@ The plan defines exit code 1 for expired secrets and 2 for expiring-soon. If a C
 
 ## Summary
 
-| # | Concern | Risk | Action Required |
-|---|---------|------|-----------------|
-| 1 | Expired secrets still accessible | Medium | Document as design trade-off |
-| 2 | Clock skew affects accuracy | Medium | Log system time in audit output |
-| 3 | Audit output leaks metadata | Low | Document as confidential output |
-| 4 | Rotation != provider revocation | High | Add CLI warning on rotation |
-| 5 | Rotation history stores old secrets | Medium | Limit retention if implemented |
-| 6 | Callback performance on init | Low | Document lightweight callback best practice |
-| 7 | Exit codes as DoS vector | Low | ACL on expiration metadata |
+| #   | Concern                             | Risk   | Action Required                             |
+| --- | ----------------------------------- | ------ | ------------------------------------------- |
+| 1   | Expired secrets still accessible    | Medium | Document as design trade-off                |
+| 2   | Clock skew affects accuracy         | Medium | Log system time in audit output             |
+| 3   | Audit output leaks metadata         | Low    | Document as confidential output             |
+| 4   | Rotation != provider revocation     | High   | Add CLI warning on rotation                 |
+| 5   | Rotation history stores old secrets | Medium | Limit retention if implemented              |
+| 6   | Callback performance on init        | Low    | Document lightweight callback best practice |
+| 7   | Exit codes as DoS vector            | Low    | ACL on expiration metadata                  |

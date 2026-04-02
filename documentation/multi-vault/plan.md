@@ -13,11 +13,11 @@ A persistent registry file that maps vault names to paths.
 
 The registry lives in the user's config directory:
 
-| Platform | Path |
-|----------|------|
-| Windows | `%APPDATA%\jseeqret\vaults.json` |
-| Linux | `~/.config/jseeqret/vaults.json` |
-| macOS | `~/Library/Application Support/jseeqret/vaults.json` |
+| Platform | Path                                                 |
+| -------- | ---------------------------------------------------- |
+| Windows  | `%APPDATA%\jseeqret\vaults.json`                     |
+| Linux    | `~/.config/jseeqret/vaults.json`                     |
+| macOS    | `~/Library/Application Support/jseeqret/vaults.json` |
 
 Resolved at runtime using `process.env.APPDATA` (Windows) or `XDG_CONFIG_HOME` / `$HOME/.config` (Linux/macOS).
 

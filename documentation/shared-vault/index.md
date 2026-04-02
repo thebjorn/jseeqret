@@ -42,15 +42,15 @@ A vault service mediates all access. Users authenticate with their NaCl keypair.
 
 ## Relationship to Other Features
 
-| Feature | Relationship |
-|---------|-------------|
-| [Multi-Vault](../multi-vault/) | A shared vault appears in each user's registry, pointing to the same directory. |
-| [Vault-to-Vault](../vault-to-vault/) | Alternative: instead of sharing a vault, send secrets between individual vaults. |
-| [Linked Vault](../linked-vault/) | Complementary: linked vault = one user, multiple vaults. Shared vault = multiple users, one vault. |
-| [Auto-Rotation](../auto-rotation/) | Rotated secrets in a shared vault are immediately visible to all users. |
-| [Server Vault](../server-vault/) | A server vault is often a shared vault -- multiple admins manage it. |
-| [Vault Hierarchy](../vault-hierarchy/) | Shared vaults can be organized into a hierarchy with inherited access rules. |
-| [Master Vault](../master-vault/) | A shared vault for the entire organization is essentially a master vault (with all its drawbacks). |
+| Feature                                | Relationship                                                                                       |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| [Multi-Vault](../multi-vault/)         | A shared vault appears in each user's registry, pointing to the same directory.                    |
+| [Vault-to-Vault](../vault-to-vault/)   | Alternative: instead of sharing a vault, send secrets between individual vaults.                   |
+| [Linked Vault](../linked-vault/)       | Complementary: linked vault = one user, multiple vaults. Shared vault = multiple users, one vault. |
+| [Auto-Rotation](../auto-rotation/)     | Rotated secrets in a shared vault are immediately visible to all users.                            |
+| [Server Vault](../server-vault/)       | A server vault is often a shared vault -- multiple admins manage it.                               |
+| [Vault Hierarchy](../vault-hierarchy/) | Shared vaults can be organized into a hierarchy with inherited access rules.                       |
+| [Master Vault](../master-vault/)       | A shared vault for the entire organization is essentially a master vault (with all its drawbacks). |
 
 ## Use Cases
 

@@ -96,13 +96,13 @@ Policies propagate through trust links during sync. An offline vault does not re
 
 ## Summary
 
-| # | Concern | Risk | Action Required |
-|---|---------|------|-----------------|
-| 1 | Trust signatures verified once | High | Periodic re-signing or expiration |
-| 2 | DAG allows scope combination | High | Define scope composition rules |
-| 3 | Policy cascade from parent | Medium | Delay propagation, allow stricter overrides |
-| 4 | Revocation doesn't remove secrets | High | Rotate secrets after revocation |
-| 5 | Bidirectional sync = upward attack | Medium | Separate opt-in for upward push |
-| 6 | Too many identity keys | Medium | Reuse NaCl keys, backup procedures |
-| 7 | Possible trust graph cycles | Low | Verify acyclicity on trust creation |
-| 8 | Offline vaults miss policy updates | Medium | Retroactive policy enforcement on sync |
+| #   | Concern                            | Risk   | Action Required                             |
+| --- | ---------------------------------- | ------ | ------------------------------------------- |
+| 1   | Trust signatures verified once     | High   | Periodic re-signing or expiration           |
+| 2   | DAG allows scope combination       | High   | Define scope composition rules              |
+| 3   | Policy cascade from parent         | Medium | Delay propagation, allow stricter overrides |
+| 4   | Revocation doesn't remove secrets  | High   | Rotate secrets after revocation             |
+| 5   | Bidirectional sync = upward attack | Medium | Separate opt-in for upward push             |
+| 6   | Too many identity keys             | Medium | Reuse NaCl keys, backup procedures          |
+| 7   | Possible trust graph cycles        | Low    | Verify acyclicity on trust creation         |
+| 8   | Offline vaults miss policy updates | Medium | Retroactive policy enforcement on sync      |

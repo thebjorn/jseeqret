@@ -161,12 +161,12 @@ jseeqret trust tree
 
 This is the most complex feature area in jseeqret. Key risks:
 
-| Risk | Mitigation |
-|------|-----------|
-| Over-engineering for current scale | Don't build until 10+ vaults are needed. |
-| Python compatibility | Accept that the Python tool may not implement hierarchy. Hierarchy is JS-only until Python catches up. |
-| Scope enforcement complexity | Start with simple FilterSpec scopes. Add more sophisticated scope algebra later if needed. |
-| Trust link key management | Reuse existing NaCl keypairs. Don't introduce a separate identity key system. |
+| Risk                               | Mitigation                                                                                             |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Over-engineering for current scale | Don't build until 10+ vaults are needed.                                                               |
+| Python compatibility               | Accept that the Python tool may not implement hierarchy. Hierarchy is JS-only until Python catches up. |
+| Scope enforcement complexity       | Start with simple FilterSpec scopes. Add more sophisticated scope algebra later if needed.             |
+| Trust link key management          | Reuse existing NaCl keypairs. Don't introduce a separate identity key system.                          |
 
 ## Implementation Order
 

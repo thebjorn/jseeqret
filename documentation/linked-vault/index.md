@@ -26,13 +26,13 @@ The core tension: it is **too early to export** during active development. The s
 
 ## Relationship to Other Features
 
-| Feature | Relationship |
-|---------|-------------|
-| [Multi-Vault](../multi-vault/) | Prerequisite -- the user must be able to manage multiple vaults before linking them. |
-| [Vault-to-Vault](../vault-to-vault/) | Linked vault builds on the existing NaCl transit encryption for secure transport. |
-| [Sync-Merge](../sync-merge/) | The merge algorithm that resolves conflicts during sync. Linked vault is the *feature*; sync-merge is the *mechanism*. |
-| [Auto-Rotation](../auto-rotation/) | Rotated secrets should propagate through linked vaults. A rotation in one vault should update all linked vaults. |
-| [Shared Vault](../shared-vault/) | Complementary but different. Shared vault = multiple users, one vault. Linked vault = one user, multiple vaults. |
+| Feature                              | Relationship                                                                                                           |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| [Multi-Vault](../multi-vault/)       | Prerequisite -- the user must be able to manage multiple vaults before linking them.                                   |
+| [Vault-to-Vault](../vault-to-vault/) | Linked vault builds on the existing NaCl transit encryption for secure transport.                                      |
+| [Sync-Merge](../sync-merge/)         | The merge algorithm that resolves conflicts during sync. Linked vault is the *feature*; sync-merge is the *mechanism*. |
+| [Auto-Rotation](../auto-rotation/)   | Rotated secrets should propagate through linked vaults. A rotation in one vault should update all linked vaults.       |
+| [Shared Vault](../shared-vault/)     | Complementary but different. Shared vault = multiple users, one vault. Linked vault = one user, multiple vaults.       |
 
 ## Use Cases
 

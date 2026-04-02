@@ -103,13 +103,13 @@ ACL rules can have an `expires_at` field (e.g., contractor access). Expiration i
 
 ## Summary
 
-| # | Concern | Risk | Action Required |
-|---|---------|------|-----------------|
-| 1 | Advisory ACL is bypassable | High | Document prominently, push toward vault service |
-| 2 | User identity is spoofable | High | Document limitation, plan NaCl signatures |
-| 3 | Shared key distribution is risky | High | NaCl key sharing + mandatory rotation |
-| 4 | Key rotation is disruptive | Medium | Transactional rotation with backup |
-| 5 | SQLite on network shares corrupts | Medium | Warn users, recommend vault service |
-| 6 | ACL file can be tampered with | Medium | Sign or hash ACL, restrict permissions |
-| 7 | Implicit admin based on username | Low | Use public key for admin identity |
-| 8 | ACL expiration doesn't revoke keys | Low | Rotate keys on access expiration |
+| #   | Concern                            | Risk   | Action Required                                 |
+| --- | ---------------------------------- | ------ | ----------------------------------------------- |
+| 1   | Advisory ACL is bypassable         | High   | Document prominently, push toward vault service |
+| 2   | User identity is spoofable         | High   | Document limitation, plan NaCl signatures       |
+| 3   | Shared key distribution is risky   | High   | NaCl key sharing + mandatory rotation           |
+| 4   | Key rotation is disruptive         | Medium | Transactional rotation with backup              |
+| 5   | SQLite on network shares corrupts  | Medium | Warn users, recommend vault service             |
+| 6   | ACL file can be tampered with      | Medium | Sign or hash ACL, restrict permissions          |
+| 7   | Implicit admin based on username   | Low    | Use public key for admin identity               |
+| 8   | ACL expiration doesn't revoke keys | Low    | Rotate keys on access expiration                |

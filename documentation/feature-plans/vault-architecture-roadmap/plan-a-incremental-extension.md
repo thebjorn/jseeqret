@@ -142,14 +142,14 @@ flowchart TD
 
 ## Estimated Complexity
 
-| Feature | Files Changed | New Files | Migration |
-|---------|--------------|-----------|-----------|
-| Multi-Vault | 2 | 2 (vault-registry.js, CLI vault cmd) | None |
-| Shared Vault | 3 | 1 (acl.js) | v003: created_by, updated_by |
-| Server Vault | 1 | 1 (CLI server push/pull) | None |
-| Auto-Rotation | 4 | 1 (CLI audit cmd) | v003/v004: expires_at, rotated_at |
-| Vault-to-Vault | 2 | 1 (CLI send cmd) | None |
-| Secret Request | 0 | 2 (CLI request cmd, request protocol) | None |
+| Feature        | Files Changed | New Files                             | Migration                         |
+| -------------- | ------------- | ------------------------------------- | --------------------------------- |
+| Multi-Vault    | 2             | 2 (vault-registry.js, CLI vault cmd)  | None                              |
+| Shared Vault   | 3             | 1 (acl.js)                            | v003: created_by, updated_by      |
+| Server Vault   | 1             | 1 (CLI server push/pull)              | None                              |
+| Auto-Rotation  | 4             | 1 (CLI audit cmd)                     | v003/v004: expires_at, rotated_at |
+| Vault-to-Vault | 2             | 1 (CLI send cmd)                      | None                              |
+| Secret Request | 0             | 2 (CLI request cmd, request protocol) | None                              |
 
 **Total**: ~8 new files, ~12 files modified, 1-2 migrations
 

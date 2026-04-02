@@ -82,13 +82,13 @@ Option B uses `SIGHUP` to trigger reload. Any process running as the same user (
 
 ## Summary
 
-| # | Concern | Risk | Action Required |
-|---|---------|------|-----------------|
-| 1 | File watcher reloads attacker data | High | Strict filesystem permissions, document setup |
-| 2 | Encrypted exports persist | Medium | Auto-delete after import |
-| 3 | SSH key compromise = vault admin | Medium | Dedicated keys with passphrases |
-| 4 | Non-atomic reload mid-request | Medium | Implement snapshot-based atomic swap |
-| 5 | Debounce hides rapid changes | Low | Log every reload event |
-| 6 | No privilege separation | High | Document separate OS users |
-| 7 | Vault service auth gaps | Medium | Address when service is built |
-| 8 | SIGHUP DoS | Low | Debounce signal reloads |
+| #   | Concern                            | Risk   | Action Required                               |
+| --- | ---------------------------------- | ------ | --------------------------------------------- |
+| 1   | File watcher reloads attacker data | High   | Strict filesystem permissions, document setup |
+| 2   | Encrypted exports persist          | Medium | Auto-delete after import                      |
+| 3   | SSH key compromise = vault admin   | Medium | Dedicated keys with passphrases               |
+| 4   | Non-atomic reload mid-request      | Medium | Implement snapshot-based atomic swap          |
+| 5   | Debounce hides rapid changes       | Low    | Log every reload event                        |
+| 6   | No privilege separation            | High   | Document separate OS users                    |
+| 7   | Vault service auth gaps            | Medium | Address when service is built                 |
+| 8   | SIGHUP DoS                         | Low    | Debounce signal reloads                       |

@@ -115,11 +115,11 @@ Trust links form a directed acyclic graph. A parent vault can delegate subsets o
 Corporate Vault
   |
   +-- Engineering Vault (scope: eng:*:*)
-  |     |
-  |     +-- Team Alpha Vault (scope: eng:alpha:*)
-  |     |
-  |     +-- Team Beta Vault (scope: eng:beta:*)
-  |
+|                                           |
+| +-- Team Alpha Vault (scope: eng:alpha:*) |
+|                                           |
+| +-- Team Beta Vault (scope: eng:beta:*)   |
+|                                           |
   +-- Operations Vault (scope: ops:*:*)
 ```
 
@@ -241,15 +241,15 @@ flowchart TD
 
 ## Estimated Complexity
 
-| Feature | Files Changed | New Files | Migration |
-|---------|--------------|-----------|-----------|
-| Vault Identity | 3 | 2 (identity.js, trust.js) | v003: vault_identity, trust_links |
-| Trust Links + ACL | 2 | 1 (trust CLI commands) | v003 |
-| Sync Protocol | 2 | 5 (sync/, transports/) | v003: sync_log table |
-| Multi-Vault Federation | 3 | 1 (vault-registry.js) | None |
-| Vault Hierarchy | 1 | 1 (hierarchy resolution) | None (uses trust_links) |
-| Auto-Rotation + Propagation | 4 | 2 (rotation policy, propagation) | v003/v004: expires_at, version |
-| Secret Requests | 1 | 2 (request protocol, CLI) | v003: requests table |
+| Feature                     | Files Changed | New Files                        | Migration                         |
+| --------------------------- | ------------- | -------------------------------- | --------------------------------- |
+| Vault Identity              | 3             | 2 (identity.js, trust.js)        | v003: vault_identity, trust_links |
+| Trust Links + ACL           | 2             | 1 (trust CLI commands)           | v003                              |
+| Sync Protocol               | 2             | 5 (sync/, transports/)           | v003: sync_log table              |
+| Multi-Vault Federation      | 3             | 1 (vault-registry.js)            | None                              |
+| Vault Hierarchy             | 1             | 1 (hierarchy resolution)         | None (uses trust_links)           |
+| Auto-Rotation + Propagation | 4             | 2 (rotation policy, propagation) | v003/v004: expires_at, version    |
+| Secret Requests             | 1             | 2 (request protocol, CLI)        | v003: requests table              |
 
 **Total**: ~14 new files, ~16 files modified, 2-3 migrations
 **Significantly more complex than Plan A or B**

@@ -10,29 +10,29 @@ Add a `jseeqret serve` command that runs a REST API server (Express or Fastify) 
 
 ```
                     +------------------+
-                    |  Vault Service   |
-                    |  (HTTP + SSE)    |
+| Vault Service |
+| (HTTP + SSE)  |
                     +--------+---------+
                              |
               +--------------+--------------+
               |              |              |
         +-----+----+  +-----+----+  +------+-----+
-        | Auth     |  | ACL      |  | Audit Log  |
-        | (NaCl    |  | (per-user|  | (append-   |
-        | challenge|  |  per-app |  |  only log) |
-        | response)|  |  rules)  |  |            |
+| Auth      |     | ACL       |     | Audit Log |
+| (NaCl     |     | (per-user |     | (append-  |
+| challenge |     | per-app   |     | only log) |
+| response) |     | rules)    |     |           |
         +-----+----+  +-----+----+  +------+-----+
               |              |              |
               +--------------+--------------+
                              |
                     +--------+---------+
-                    |  SqliteStorage   |
-                    |  (existing)      |
+| SqliteStorage |
+| (existing)    |
                     +--------+---------+
                              |
                     +--------+---------+
-                    |  Vault Dir       |
-                    |  (db + keys)     |
+| Vault Dir   |
+| (db + keys) |
                     +------------------+
 ```
 
@@ -204,16 +204,16 @@ flowchart TD
 
 ## Estimated Complexity
 
-| Feature | Files Changed | New Files | Migration |
-|---------|--------------|-----------|-----------|
-| Vault Service Core | 2 | 8 (server/, routes/, middleware/) | None |
-| Auth (NaCl challenge-response) | 0 | 2 (auth.js, client.js) | None |
-| ACL | 1 | 1 (middleware/acl.js) | v003: acl table |
-| Multi-Vault | 2 | 1 (vault-registry.js) | None |
-| Auto-Rotation + SSE | 3 | 2 (rotation timer, SSE handler) | v003/v004 |
-| Vault-to-Vault Sync | 1 | 2 (routes/sync.js, CLI sync cmd) | None |
-| Secret Requests | 0 | 2 (routes/requests.js, CLI request cmd) | v003 |
-| VaultClient (library) | 1 | 1 (client.js) | None |
+| Feature                        | Files Changed | New Files                               | Migration       |
+| ------------------------------ | ------------- | --------------------------------------- | --------------- |
+| Vault Service Core             | 2             | 8 (server/, routes/, middleware/)       | None            |
+| Auth (NaCl challenge-response) | 0             | 2 (auth.js, client.js)                  | None            |
+| ACL                            | 1             | 1 (middleware/acl.js)                   | v003: acl table |
+| Multi-Vault                    | 2             | 1 (vault-registry.js)                   | None            |
+| Auto-Rotation + SSE            | 3             | 2 (rotation timer, SSE handler)         | v003/v004       |
+| Vault-to-Vault Sync            | 1             | 2 (routes/sync.js, CLI sync cmd)        | None            |
+| Secret Requests                | 0             | 2 (routes/requests.js, CLI request cmd) | v003            |
+| VaultClient (library)          | 1             | 1 (client.js)                           | None            |
 
 **Total**: ~19 new files, ~10 files modified, 1-2 migrations
 **New dependency**: Fastify (or Express)

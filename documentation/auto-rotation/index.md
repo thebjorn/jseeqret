@@ -27,13 +27,13 @@ When a secret expires or is rotated, every application and user that depends on 
 
 ## Relationship to Other Features
 
-| Feature | Relationship |
-|---------|-------------|
-| [Server Vault](../server-vault/) | Server applications need to know when to `reload()` after a rotation. |
-| [Vault-to-Vault](../vault-to-vault/) | Rotated secrets should be pushed to recipients. |
-| [Linked Vault](../linked-vault/) | Rotated secrets propagate through linked vault sync (they have a new `updated_at`). |
-| [Shared Vault](../shared-vault/) | In a shared vault, rotation is immediately visible to all users. Notification is still needed for running applications. |
-| [Sync-Merge](../sync-merge/) | Rotation metadata (`rotated_at`, `expires_at`) should be included in sync manifests. |
+| Feature                              | Relationship                                                                                                            |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| [Server Vault](../server-vault/)     | Server applications need to know when to `reload()` after a rotation.                                                   |
+| [Vault-to-Vault](../vault-to-vault/) | Rotated secrets should be pushed to recipients.                                                                         |
+| [Linked Vault](../linked-vault/)     | Rotated secrets propagate through linked vault sync (they have a new `updated_at`).                                     |
+| [Shared Vault](../shared-vault/)     | In a shared vault, rotation is immediately visible to all users. Notification is still needed for running applications. |
+| [Sync-Merge](../sync-merge/)         | Rotation metadata (`rotated_at`, `expires_at`) should be included in sync manifests.                                    |
 
 ## Use Cases
 

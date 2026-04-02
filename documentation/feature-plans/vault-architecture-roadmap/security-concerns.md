@@ -115,13 +115,13 @@ Trust links, distributed sync, and scope inheritance are the most security-criti
 
 ## Summary
 
-| # | Concern | Risk | Plans Affected | Action Required |
-|---|---------|------|----------------|-----------------|
-| 1 | Plaintext key files | High | All | OS-level key protection |
-| 2 | No memory protection | Medium | All | Document as limitation |
-| 3 | Migration downgrade attack | Medium | All | `min_tool_version` check |
-| 4 | No TLS for vault service | High | Plan B | Require TLS for non-localhost |
-| 5 | Trust bootstrap problem | Medium | Plan C, V2V | Key fingerprint verification |
-| 6 | Advisory ACL false security | Medium | Plan A | Honest documentation |
-| 7 | Service as availability risk | Medium | Plan B | Caching + graceful degradation |
-| 8 | Complexity breeds bugs | High | Plan C | Formal testing + security audit |
+| #   | Concern                      | Risk   | Plans Affected | Action Required                 |
+| --- | ---------------------------- | ------ | -------------- | ------------------------------- |
+| 1   | Plaintext key files          | High   | All            | OS-level key protection         |
+| 2   | No memory protection         | Medium | All            | Document as limitation          |
+| 3   | Migration downgrade attack   | Medium | All            | `min_tool_version` check        |
+| 4   | No TLS for vault service     | High   | Plan B         | Require TLS for non-localhost   |
+| 5   | Trust bootstrap problem      | Medium | Plan C, V2V    | Key fingerprint verification    |
+| 6   | Advisory ACL false security  | Medium | Plan A         | Honest documentation            |
+| 7   | Service as availability risk | Medium | Plan B         | Caching + graceful degradation  |
+| 8   | Complexity breeds bugs       | High   | Plan C         | Formal testing + security audit |

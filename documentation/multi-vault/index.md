@@ -21,12 +21,12 @@ In the current design, there is a single vault directory (default: `/srv/.seeqre
 
 ## Relationship to Other Features
 
-| Feature | Relationship |
-|---------|-------------|
-| [Linked Vault](../linked-vault/) | Prerequisite -- vaults must be addressable by name before they can be linked. |
-| [Shared Vault](../shared-vault/) | A shared vault appears in the registry like any other vault, but multiple users' registries point to the same directory. |
-| [Server Vault](../server-vault/) | A server vault is a named entry in the admin's registry, accessed via `--vault server-prod`. |
-| [Vault Hierarchy](../vault-hierarchy/) | The registry is the starting point for organizing vaults into a trust tree. |
+| Feature                                | Relationship                                                                                                             |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| [Linked Vault](../linked-vault/)       | Prerequisite -- vaults must be addressable by name before they can be linked.                                            |
+| [Shared Vault](../shared-vault/)       | A shared vault appears in the registry like any other vault, but multiple users' registries point to the same directory. |
+| [Server Vault](../server-vault/)       | A server vault is a named entry in the admin's registry, accessed via `--vault server-prod`.                             |
+| [Vault Hierarchy](../vault-hierarchy/) | The registry is the starting point for organizing vaults into a trust tree.                                              |
 
 ## Use Cases
 

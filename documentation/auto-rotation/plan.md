@@ -165,11 +165,11 @@ jseeqret audit --warn-days 14
 
 ### Exit Codes
 
-| Code | Meaning |
-|------|---------|
-| 0 | All secrets healthy (no expired, no expiring soon) |
-| 1 | At least one secret expired |
-| 2 | No expired secrets, but at least one expiring soon |
+| Code | Meaning                                            |
+| ---- | -------------------------------------------------- |
+| 0    | All secrets healthy (no expired, no expiring soon) |
+| 1    | At least one secret expired                        |
+| 2    | No expired secrets, but at least one expiring soon |
 
 ### Deliverables
 - `src/cli/commands/audit.js` -- audit command

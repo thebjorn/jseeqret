@@ -36,12 +36,12 @@ An administrator needs to:
 
 ## Relationship to Other Features
 
-| Feature | Relationship |
-|---------|-------------|
+| Feature                              | Relationship                                                                                       |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------- |
 | [Vault-to-Vault](../vault-to-vault/) | The admin pushes secrets from their local vault to the server vault using NaCl transit encryption. |
-| [Linked Vault](../linked-vault/) | A server vault could be linked to a dev vault for automatic staging deployments. |
-| [Auto-Rotation](../auto-rotation/) | Rotated secrets on the server need to trigger `reload()` in the application. |
-| [Shared Vault](../shared-vault/) | Multiple administrators may need write access to the same server vault. |
+| [Linked Vault](../linked-vault/)     | A server vault could be linked to a dev vault for automatic staging deployments.                   |
+| [Auto-Rotation](../auto-rotation/)   | Rotated secrets on the server need to trigger `reload()` in the application.                       |
+| [Shared Vault](../shared-vault/)     | Multiple administrators may need write access to the same server vault.                            |
 
 ## Existing Documents
 
