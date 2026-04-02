@@ -22,17 +22,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-          cache: npm
+          cache: pnpm
 
       - name: Install dependencies
-        run: npm install
+        run: pnpm install --frozen-lockfile
 
       - name: Run tests with coverage
-        run: npm run test:coverage
+        run: pnpm test:coverage
 
       - name: Upload coverage to Codecov
         if: matrix.os == 'ubuntu-latest'
@@ -43,7 +46,7 @@ jobs:
           fail_ci_if_error: false
 
       - name: Build Electron app
-        run: npm run build
+        run: pnpm build
 
   docs:
     runs-on: ubuntu-latest
@@ -56,17 +59,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: npm
+          cache: pnpm
 
       - name: Install dependencies
-        run: npm install
+        run: pnpm install --frozen-lockfile
 
       - name: Build JSDoc
-        run: npm run docs
+        run: pnpm docs
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

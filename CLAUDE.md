@@ -9,17 +9,17 @@ jseeqret is a JavaScript port of Python's `seeqret` secrets manager with full co
 ## Commands
 
 ```bash
-npm run dev            # Electron dev server with hot reload
-npm run build          # Production build (electron-vite)
-npm test               # Run all tests (vitest)
-npm run test:watch     # Watch mode
-npm run test:coverage  # Coverage report (v8, covers src/core/**)
-npm run cli            # Run CLI directly: node ./src/cli/index.js
-npm run bench          # Performance benchmark (get operations/sec)
-npm run docs           # Generate JSDoc docs
+pnpm dev               # Electron dev server with hot reload
+pnpm build             # Production build (electron-vite)
+pnpm test              # Run all tests (vitest)
+pnpm test:watch        # Watch mode
+pnpm test:coverage     # Coverage report (v8, covers src/core/**)
+pnpm cli               # Run CLI directly: node ./src/cli/index.js
+pnpm bench             # Performance benchmark (get operations/sec)
+pnpm docs              # Generate JSDoc docs
 ```
 
-Run a single test file: `npx vitest run tests/api.test.js`
+Run a single test file: `pnpm exec vitest run tests/api.test.js`
 
 ## Architecture
 
