@@ -60,7 +60,9 @@
       ],
       "icon": "build/icon.ico",
       "signtoolOptions": {
-        "signingHashAlgorithms": ["sha256"],
+        "signingHashAlgorithms": [
+          "sha256"
+        ],
         "sign": "./sign.js"
       }
     },
@@ -96,7 +98,7 @@
     "electron-vite": "^5.0.0",
     "jsdoc": "^4.0.5",
     "svelte": "^5.53.12",
-    "vite": "^6.4.1",
+    "vite": "^6.4.2",
     "vitest": "^4.1.0"
   }
 }
