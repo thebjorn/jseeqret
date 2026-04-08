@@ -87,7 +87,7 @@ export function registry_use(name) {
 
 /**
  * List all registered vaults.
- * @returns {{ name: string, path: string, is_default: boolean }[]}
+ * @returns {Array.<{name: string, path: string, is_default: boolean}>}
  */
 export function registry_list() {
     const registry = read_registry()
