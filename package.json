@@ -1,9 +1,10 @@
 {
   "name": "jseeqret",
-  "version": "0.5.8",
+  "version": "0.5.9",
   "type": "module",
   "description": "Secure secrets manager - JavaScript/Electron/Svelte5 port of seeqret",
   "author": "thebjorn",
+  "packageManager": "pnpm@10.11.0",
   "main": "./out/main/index.js",
   "exports": {
     ".": "./src/core/api.js",
