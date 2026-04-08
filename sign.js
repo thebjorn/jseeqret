@@ -24,6 +24,12 @@ function find_signtool() {
 const SIGNTOOL = find_signtool()
 
 export default async function sign(configuration) {
+    // skip signing in CI — no hardware token available
+    if (process.env.CI) {
+        console.log(`Skipping code signing in CI: ${configuration.path}`)
+        return
+    }
+
     const file_path = configuration.path
 
     // skip signing non-exe/dll files (e.g. uninstaller stub during nsis build)
