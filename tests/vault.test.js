@@ -3,6 +3,9 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import { get_seeqret_dir, is_initialized, current_user } from '../src/core/vault.js'
+import { registry_default } from '../src/core/vault-registry.js'
+
+const has_registry_vault = !!registry_default()
 
 let tmp_dir
 let saved_jseeqret
@@ -36,7 +39,7 @@ describe('get_seeqret_dir', () => {
         expect(get_seeqret_dir()).toBe('/path/seeqret')
     })
 
-    it('returns /srv/.seeqret on non-win32 when no env vars', () => {
+    it.skipIf(has_registry_vault)('returns /srv/.seeqret on non-win32 when no env vars', () => {
         const origPlatform = Object.getOwnPropertyDescriptor(process, 'platform')
         Object.defineProperty(process, 'platform', { value: 'linux' })
         try {
@@ -46,7 +49,7 @@ describe('get_seeqret_dir', () => {
         }
     })
 
-    it('throws on win32 when no env vars set', () => {
+    it.skipIf(has_registry_vault)('throws on win32 when no env vars set', () => {
         if (process.platform === 'win32') {
             expect(() => get_seeqret_dir()).toThrow('environment variable is not set')
         }
@@ -54,7 +57,7 @@ describe('get_seeqret_dir', () => {
 })
 
 describe('is_initialized', () => {
-    it('returns false when env var not set (win32)', () => {
+    it.skipIf(has_registry_vault)('returns false when env var not set (win32)', () => {
         if (process.platform === 'win32') {
             expect(is_initialized()).toBe(false)
         }

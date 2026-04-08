@@ -3,6 +3,9 @@ import { createRequire } from 'module'
 import {
     create_test_vault, cleanup_vault, run_command,
 } from './cli-helpers.js'
+import { registry_default } from '../src/core/vault-registry.js'
+
+const has_registry_vault = !!registry_default()
 
 const require = createRequire(import.meta.url)
 const { version: pkg_version } = require('../package.json')
@@ -29,7 +32,7 @@ describe('CLI: info', () => {
         expect(result.stdout).toContain('Commands:')
     })
 
-    it('shows not initialized without vault', () => {
+    it.skipIf(has_registry_vault)('shows not initialized without vault', () => {
         const result = run_command([
             'info',
         ], { env: { JSEEQRET: '', SEEQRET: '' } })
@@ -56,7 +59,7 @@ describe('CLI: info', () => {
         expect(info.user_count).toBe(1)
     })
 
-    it('dumps JSON for uninitialized vault', () => {
+    it.skipIf(has_registry_vault)('dumps JSON for uninitialized vault', () => {
         const result = run_command([
             'info', '--dump',
         ], { env: { JSEEQRET: '', SEEQRET: '' } })
