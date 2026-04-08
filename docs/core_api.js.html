@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: core/api.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: core/api.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * Public API for jseeqret.
+ *
+ * Usage:
+ *   import { get } from 'jseeqret'
+ *   const value = get('DB_PASSWORD', 'myapp', 'prod')
+ *
+ * The database and symmetric key are cached on first access for fast
+ * repeated lookups. Call `close()` to release resources.
+ */
+
+import initSqlJs from 'sql.js'
+import fs from 'fs'
+import path from 'path'
+import { get_seeqret_dir } from './vault.js'
+import { decrypt } from './crypto/fernet.js'
+
+let _db = null
+let _key = null
+let _vault_dir = null
+let _SQL = null
+
+function cnvt(typename, val) {
+    if (typename === 'int') return parseInt(val, 10)
+    return val
+}
+
+/**
+ * Ensure the cached db and key are loaded.
+ * Synchronous after first init (sql.js WASM load is async).
+ */
+async function _ensure_loaded() {
+    const vault_dir = get_seeqret_dir()
+
+    // If vault dir changed, reset cache
+    if (_vault_dir !== vault_dir) {
+        _close()
+        _vault_dir = vault_dir
+    }
+
+    if (!_key) {
+        _key = fs.readFileSync(path.join(vault_dir, 'seeqret.key'), 'utf-8').trim()
+    }
+
+    if (!_db) {
+        if (!_SQL) {
+            _SQL = await initSqlJs()
+        }
+        const buf = fs.readFileSync(path.join(vault_dir, 'seeqrets.db'))
+        _db = new _SQL.Database(buf)
+    }
+}
+
+function _close() {
+    if (_db) {
+        _db.close()
+        _db = null
+    }
+    _key = null
+    _vault_dir = null
+}
+
+/**
+ * Get a secret value from the vault (async, first call initializes cache).
+ *
+ * @param {string} key - secret key name
+ * @param {string} [app='*'] - application name
+ * @param {string} [env='*'] - environment name
+ * @returns {Promise&lt;string|number>} decrypted value
+ */
+export async function get(key, app = '*', env = '*') {
+    await _ensure_loaded()
+    return _get_sync(key, app, env)
+}
+
+/**
+ * Synchronous get -- only works after `init()` has been called.
+ *
+ * @param {string} key
+ * @param {string} [app='*']
+ * @param {string} [env='*']
+ * @returns {string|number}
+ */
+export function get_sync(key, app = '*', env = '*') {
+    if (!_db || !_key) {
+        throw new Error('jseeqret not initialized. Call await init() first.')
+    }
+    return _get_sync(key, app, env)
+}
+
+function _get_sync(key, app, env) {
+    const stmt = _db.prepare(
+        'SELECT value, type FROM secrets WHERE key = ? AND app = ? AND env = ?'
+    )
+    stmt.bind([key, app, env])
+
+    if (!stmt.step()) {
+        stmt.free()
+        throw new Error(`Secret not found: ${app}:${env}:${key}`)
+    }
+
+    const row = stmt.getAsObject()
+    stmt.free()
+
+    const plaintext = decrypt(_key, row.value).toString('utf-8')
+    return cnvt(row.type, plaintext)
+}
+
+/**
+ * Initialize the cache (load WASM, open database, read key).
+ * Call this once at startup for fastest subsequent `get_sync()` calls.
+ */
+export async function init() {
+    await _ensure_loaded()
+}
+
+/**
+ * Close the cached database and release resources.
+ */
+export function close() {
+    _close()
+}
+
+/**
+ * Reload the database from disk (picks up changes made by other tools).
+ */
+export async function reload() {
+    _close()
+    await _ensure_loaded()
+}
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="BaseSerializer.html">BaseSerializer</a></li><li><a href="FilterSpec_FilterSpec.html">FilterSpec</a></li><li><a href="Secret_Secret.html">Secret</a></li><li><a href="SqliteStorage_SqliteStorage.html">SqliteStorage</a></li><li><a href="User_User.html">User</a></li></ul><h3>Global</h3><ul><li><a href="global.html#LEVELS">LEVELS</a></li><li><a href="global.html#_ensure_loaded">_ensure_loaded</a></li><li><a href="global.html#_registry">_registry</a></li><li><a href="global.html#as_table">as_table</a></li><li><a href="global.html#asymmetric_decrypt">asymmetric_decrypt</a></li><li><a href="global.html#asymmetric_encrypt">asymmetric_encrypt</a></li><li><a href="global.html#attrib_cmd">attrib_cmd</a></li><li><a href="global.html#base64url_decode">base64url_decode</a></li><li><a href="global.html#base64url_encode">base64url_encode</a></li><li><a href="global.html#close">close</a></li><li><a href="global.html#current_user">current_user</a></li><li><a href="global.html#current_version_sync">current_version_sync</a></li><li><a href="global.html#decode_key">decode_key</a></li><li><a href="global.html#decrypt">decrypt</a></li><li><a href="global.html#encode_key">encode_key</a></li><li><a href="global.html#encrypt">encrypt</a></li><li><a href="global.html#fingerprint">fingerprint</a></li><li><a href="global.html#generate_and_save_key_pair">generate_and_save_key_pair</a></li><li><a href="global.html#generate_key">generate_key</a></li><li><a href="global.html#generate_key_pair">generate_key_pair</a></li><li><a href="global.html#generate_symmetric_key">generate_symmetric_key</a></li><li><a href="global.html#get">get</a></li><li><a href="global.html#getSQL">getSQL</a></li><li><a href="global.html#get_log_level">get_log_level</a></li><li><a href="global.html#get_or_create_symmetric_key">get_or_create_symmetric_key</a></li><li><a href="global.html#get_public_key">get_public_key</a></li><li><a href="global.html#get_seeqret_dir">get_seeqret_dir</a></li><li><a href="global.html#get_sync">get_sync</a></li><li><a href="global.html#glob_to_regex">glob_to_regex</a></li><li><a href="global.html#glob_to_sql">glob_to_sql</a></li><li><a href="global.html#harden_vault_windows">harden_vault_windows</a></li><li><a href="global.html#has_command">has_command</a></li><li><a href="global.html#has_glob_chars">has_glob_chars</a></li><li><a href="global.html#hash_message">hash_message</a></li><li><a href="global.html#init">init</a></li><li><a href="global.html#init_db_v001">init_db_v001</a></li><li><a href="global.html#init_db_v002">init_db_v002</a></li><li><a href="global.html#is_encrypted">is_encrypted</a></li><li><a href="global.html#is_initialized">is_initialized</a></li><li><a href="global.html#is_path">is_path</a></li><li><a href="global.html#load_private_key_str">load_private_key_str</a></li><li><a href="global.html#load_public_key_str">load_public_key_str</a></li><li><a href="global.html#load_symmetric_key">load_symmetric_key</a></li><li><a href="global.html#open_db">open_db</a></li><li><a href="global.html#parse_env">parse_env</a></li><li><a href="global.html#parse_version_requirement">parse_version_requirement</a></li><li><a href="global.html#read_registry">read_registry</a></li><li><a href="global.html#read_stdin_until_eof">read_stdin_until_eof</a></li><li><a href="global.html#registry_add">registry_add</a></li><li><a href="global.html#registry_default">registry_default</a></li><li><a href="global.html#registry_list">registry_list</a></li><li><a href="global.html#registry_remove">registry_remove</a></li><li><a href="global.html#registry_resolve">registry_resolve</a></li><li><a href="global.html#registry_use">registry_use</a></li><li><a href="global.html#reload">reload</a></li><li><a href="global.html#require_vault">require_vault</a></li><li><a href="global.html#run">run</a></li><li><a href="global.html#run_migrations">run_migrations</a></li><li><a href="global.html#set_log_level">set_log_level</a></li><li><a href="global.html#upgrade_db">upgrade_db</a></li><li><a href="global.html#validate_current_user">validate_current_user</a></li><li><a href="global.html#write_registry">write_registry</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Wed Apr 08 2026 23:33:17 GMT+0200 (Central European Summer Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

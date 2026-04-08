@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    background: #1a1a2e;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 20px;
+    gap: 16px;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    min-height: 100vh;
+}
+.terminal {
+    width: 520px;
+    background: #0d1117;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+}
+.terminal-header {
+    background: #161b22;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.terminal-header .dots {
+    display: flex;
+    gap: 6px;
+}
+.terminal-header .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+.dot.red { background: #ff5f57; }
+.dot.yellow { background: #febc2e; }
+.dot.green { background: #28c840; }
+.terminal-header .title {
+    color: #8b949e;
+    font-size: 12px;
+    flex: 1;
+    text-align: center;
+    margin-right: 42px;
+}
+.terminal-body {
+    padding: 12px;
+    height: 620px;
+    overflow: hidden;
+    font-size: 12.5px;
+    line-height: 1.5;
+}
+.line {
+    opacity: 0;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+.line.visible { opacity: 1; }
+.prompt { color: #7ee787; }
+.cmd { color: #e6edf3; }
+.output { color: #8b949e; }
+.highlight { color: #ffa657; }
+.info { color: #58a6ff; }
+.comment { color: #6e7681; font-style: italic; }
+.step-label {
+    color: #58a6ff;
+    font-size: 11px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 1px solid #21262d;
+    padding-bottom: 4px;
+    margin-bottom: 4px;
+}
+.transfer {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10;
+    text-align: center;
+}
+.transfer.visible { display: block; }
+.transfer-arrow {
+    font-size: 36px;
+    line-height: 1;
+}
+.transfer-label {
+    color: #8b949e;
+    font-size: 11px;
+    margin-top: 4px;
+}
+.transfer-left .transfer-arrow { color: #f0883e; }
+.transfer-right .transfer-arrow { color: #7ee787; }
+</style>
+</head>
+<body>
+
+<div class="terminal" id="alice">
+    <div class="terminal-header">
+        <div class="dots"><div class="dot red"></div><div class="dot yellow"></div><div class="dot green"></div></div>
+        <div class="title">Alice (vault owner)</div>
+    </div>
+    <div class="terminal-body"></div>
+</div>
+
+<div class="terminal" id="bob">
+    <div class="terminal-header">
+        <div class="dots"><div class="dot red"></div><div class="dot yellow"></div><div class="dot green"></div></div>
+        <div class="title">Bob (new team member)</div>
+    </div>
+    <div class="terminal-body"></div>
+</div>
+
+<div class="transfer" id="transfer">
+    <div class="transfer-arrow"></div>
+    <div class="transfer-label"></div>
+</div>
+
+<script>
+const steps = [
+    // Step 1: Both init vaults
+    { delay: 500, side: 'alice', type: 'label', text: 'Step 1: Initialize vaults' },
+    { delay: 0,   side: 'bob',   type: 'label', text: 'Step 1: Initialize vaults' },
+    { delay: 600, side: 'alice', type: 'cmd',   text: 'jseeqret init /srv/vault --user alice --email alice@co.com' },
+    { delay: 400, side: 'bob',   type: 'cmd',   text: 'jseeqret init /srv/vault --user bob --email bob@co.com' },
+    { delay: 500, side: 'alice', type: 'output', text: 'Vault initialized at /srv/vault' },
+    { delay: 200, side: 'bob',   type: 'output', text: 'Vault initialized at /srv/vault' },
+    { delay: 300, side: 'alice', type: 'output', text: 'Owner: alice <alice@co.com>' },
+    { delay: 200, side: 'bob',   type: 'output', text: 'Owner: bob <bob@co.com>' },
+
+    // Step 2: Exchange introductions
+    { delay: 1000, side: 'alice', type: 'label', text: '\nStep 2: Exchange public keys' },
+    { delay: 0,    side: 'bob',   type: 'label', text: '\nStep 2: Exchange public keys' },
+    { delay: 600,  side: 'alice', type: 'cmd',   text: 'jseeqret introduction' },
+    { delay: 400,  side: 'bob',   type: 'cmd',   text: 'jseeqret introduction' },
+    { delay: 500,  side: 'alice', type: 'output', text: 'Please add me to your vault!' },
+    { delay: 200,  side: 'bob',   type: 'output', text: 'Please add me to your vault!' },
+    { delay: 200,  side: 'alice', type: 'highlight', text: 'jseeqret add user --username alice \\\n  --email alice@co.com \\\n  --pubkey MBiGKm...Dzw=' },
+    { delay: 200,  side: 'bob',   type: 'highlight', text: 'jseeqret add user --username bob \\\n  --email bob@co.com \\\n  --pubkey x9kPvn...Q4s=' },
+
+    // Transfer arrows
+    { delay: 800, side: 'transfer', type: 'right', text: 'send via Slack' },
+    { delay: 1200, side: 'transfer', type: 'left', text: 'send via Slack' },
+    { delay: 1200, side: 'transfer', type: 'hide' },
+
+    // Step 3: Paste introductions
+    { delay: 400, side: 'alice', type: 'label', text: '\nStep 3: Register each other' },
+    { delay: 0,   side: 'bob',   type: 'label', text: '\nStep 3: Register each other' },
+    { delay: 400, side: 'alice', type: 'comment', text: '# paste Bob\'s introduction command' },
+    { delay: 200, side: 'bob',   type: 'comment', text: '# paste Alice\'s introduction command' },
+    { delay: 400, side: 'alice', type: 'cmd',   text: 'jseeqret add user --username bob \\\n  --email bob@co.com \\\n  --pubkey x9kPvn...Q4s=' },
+    { delay: 400, side: 'bob',   type: 'cmd',   text: 'jseeqret add user --username alice \\\n  --email alice@co.com \\\n  --pubkey MBiGKm...Dzw=' },
+    { delay: 400, side: 'alice', type: 'output', text: 'User bob added.' },
+    { delay: 200, side: 'bob',   type: 'output', text: 'User alice added.' },
+
+    // Step 4: Alice adds secrets
+    { delay: 1000, side: 'alice', type: 'label', text: '\nStep 4: Add secrets' },
+    { delay: 600,  side: 'alice', type: 'cmd',   text: 'jseeqret add key DB_PASSWORD "s3cret" \\\n  --app myapp --env prod' },
+    { delay: 400,  side: 'alice', type: 'output', text: 'Secret myapp:prod:DB_PASSWORD added.' },
+    { delay: 400,  side: 'alice', type: 'cmd',   text: 'jseeqret add key API_KEY "ak_live_xyz" \\\n  --app myapp --env prod' },
+    { delay: 400,  side: 'alice', type: 'output', text: 'Secret myapp:prod:API_KEY added.' },
+
+    // Step 5: Export with command serializer
+    { delay: 1000, side: 'alice', type: 'label', text: '\nStep 5: Export secrets for Bob' },
+    { delay: 600,  side: 'alice', type: 'cmd',   text: 'jseeqret export --to bob -s command' },
+    { delay: 500,  side: 'alice', type: 'highlight', text: 'jseeqret load -ubob -scommand \\\n  -v954db:myapp:prod:DB_PASSWORD:str:0J1V...' },
+    { delay: 300,  side: 'alice', type: 'highlight', text: 'jseeqret load -ubob -scommand \\\n  -va27cb:myapp:prod:API_KEY:str:vTvN...' },
+
+    // Transfer
+    { delay: 800, side: 'transfer', type: 'right', text: 'send via Slack' },
+    { delay: 1200, side: 'transfer', type: 'hide' },
+
+    // Step 6: Bob loads
+    { delay: 400, side: 'bob', type: 'label', text: '\nStep 6: Load secrets' },
+    { delay: 400, side: 'bob', type: 'comment', text: '# paste commands from Alice' },
+    { delay: 400, side: 'bob', type: 'cmd',   text: 'jseeqret load -ubob -scommand \\\n  -v954db:myapp:prod:DB_PASSWORD:str:0J1V...' },
+    { delay: 400, side: 'bob', type: 'output', text: 'Loaded myapp:prod:DB_PASSWORD' },
+    { delay: 400, side: 'bob', type: 'cmd',   text: 'jseeqret load -ubob -scommand \\\n  -va27cb:myapp:prod:API_KEY:str:vTvN...' },
+    { delay: 400, side: 'bob', type: 'output', text: 'Loaded myapp:prod:API_KEY' },
+
+    // Verify
+    { delay: 800, side: 'bob', type: 'label', text: '\nDone! Verify:' },
+    { delay: 400, side: 'bob', type: 'cmd',   text: 'jseeqret get "myapp:prod:DB_PASSWORD"' },
+    { delay: 400, side: 'bob', type: 'info',  text: 's3cret' },
+]
+
+const alice_body = document.querySelector('#alice .terminal-body')
+const bob_body = document.querySelector('#bob .terminal-body')
+const transfer_el = document.getElementById('transfer')
+
+function add_line(container, cls, text) {
+    const div = document.createElement('div')
+    div.className = 'line'
+    if (cls === 'cmd') {
+        const prompt_span = document.createElement('span')
+        prompt_span.className = 'prompt'
+        prompt_span.textContent = '$ '
+        const cmd_span = document.createElement('span')
+        cmd_span.className = 'cmd'
+        cmd_span.textContent = text
+        div.appendChild(prompt_span)
+        div.appendChild(cmd_span)
+    } else if (cls === 'label') {
+        div.className = 'line step-label'
+        div.textContent = text
+    } else {
+        div.className = 'line ' + cls
+        div.textContent = text
+    }
+    container.appendChild(div)
+    void div.offsetHeight
+    div.classList.add('visible')
+    container.scrollTop = container.scrollHeight
+}
+
+function show_transfer(direction, label) {
+    transfer_el.className = 'transfer visible'
+    const arrow_el = transfer_el.querySelector('.transfer-arrow')
+    const label_el = transfer_el.querySelector('.transfer-label')
+    if (direction === 'right') {
+        transfer_el.classList.add('transfer-right')
+        arrow_el.textContent = '\u27A1'
+    } else {
+        transfer_el.classList.add('transfer-left')
+        arrow_el.textContent = '\u2B05'
+    }
+    label_el.textContent = label
+}
+
+async function run() {
+    for (const step of steps) {
+        await new Promise(r => setTimeout(r, step.delay))
+
+        if (step.side === 'transfer') {
+            if (step.type === 'hide') {
+                transfer_el.className = 'transfer'
+            } else {
+                show_transfer(step.type, step.text)
+            }
+            continue
+        }
+
+        const container = step.side === 'alice' ? alice_body : bob_body
+        add_line(container, step.type, step.text)
+    }
+}
+
+run()
+</script>
+</body>
+</html>

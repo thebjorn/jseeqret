@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: cli/commands/add.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: cli/commands/add.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import { Command } from 'commander'
+import { SqliteStorage } from '../../core/sqlite-storage.js'
+import { Secret } from '../../core/models/secret.js'
+import { User } from '../../core/models/user.js'
+import { require_vault } from '../utils.js'
+
+const add_key = new Command('key')
+    .description('Add a new secret to the vault')
+    .argument('&lt;name>', 'Secret name (key)')
+    .argument('&lt;value>', 'Secret value')
+    .option('--app &lt;app>', 'Application name', '*')
+    .option('--env &lt;env>', 'Environment name', '*')
+    .option('--type &lt;type>', 'Value type (str, int)', 'str')
+    .action(async (name, value, opts) => {
+        require_vault()
+        const storage = new SqliteStorage()
+
+        const existing = await storage.fetch_secrets({
+            app: opts.app, env: opts.env, key: name,
+        })
+        if (existing.length > 0) {
+            console.error(
+                `Error: Secret ${opts.app}:${opts.env}:${name}`
+                + ' already exists.'
+            )
+            process.exit(1)
+        }
+
+        const secret = new Secret({
+            app: opts.app,
+            env: opts.env,
+            key: name,
+            plaintext_value: value,
+            type: opts.type,
+        })
+        await storage.add_secret(secret)
+        console.log(`Added secret: ${opts.app}:${opts.env}:${name}`)
+    })
+
+/**
+ * Read lines from stdin until EOF (Ctrl-D on Unix, Ctrl-Z on Windows).
+ * @returns {Promise&lt;string>}
+ */
+function read_stdin_until_eof() {
+    return new Promise((resolve, reject) => {
+        const chunks = []
+        process.stdin.setEncoding('utf-8')
+        process.stdin.on('data', chunk => chunks.push(chunk))
+        process.stdin.on('end', () => resolve(chunks.join('')))
+        process.stdin.on('error', reject)
+        process.stdin.resume()
+    })
+}
+
+const add_text = new Command('text')
+    .description('Add a multi-line secret (reads stdin until EOF)')
+    .argument('&lt;name>', 'Secret name (key)')
+    .option('--app &lt;app>', 'Application name', '*')
+    .option('--env &lt;env>', 'Environment name', '*')
+    .action(async (name, opts) => {
+        require_vault()
+        const storage = new SqliteStorage()
+
+        // Check if secret already exists
+        const existing = await storage.fetch_secrets({
+            app: opts.app, env: opts.env, key: name,
+        })
+        if (existing.length > 0) {
+            console.error(
+                `Error: Secret ${opts.app}:${opts.env}:${name}`
+                + ' already exists.'
+            )
+            process.exit(1)
+        }
+
+        if (process.stdin.isTTY) {
+            console.error(
+                'Enter secret value (Ctrl-D to finish):'
+            )
+        }
+
+        const value = (await read_stdin_until_eof()).replace(
+            /\r/g, ''
+        )
+
+        const secret = new Secret({
+            app: opts.app,
+            env: opts.env,
+            key: name,
+            plaintext_value: value,
+            type: 'str',
+        })
+        await storage.add_secret(secret)
+        console.log(`Added secret: ${opts.app}:${opts.env}:${name}`)
+    })
+
+const add_user = new Command('user')
+    .description('Add a new user to the vault')
+    .requiredOption('--username &lt;username>', 'Username')
+    .requiredOption('--email &lt;email>', 'User email')
+    .requiredOption('--pubkey &lt;pubkey>', 'User public key (base64)')
+    .action(async (opts) => {
+        require_vault()
+        const storage = new SqliteStorage()
+        const user = new User(opts.username, opts.email, opts.pubkey)
+        await storage.add_user(user)
+        console.log(`Added user: ${opts.username}`)
+    })
+
+export const add_commands = new Command('add')
+    .description('Add a new secret or user')
+
+add_commands.addCommand(add_key)
+add_commands.addCommand(add_text)
+add_commands.addCommand(add_user)
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="BaseSerializer.html">BaseSerializer</a></li><li><a href="FilterSpec_FilterSpec.html">FilterSpec</a></li><li><a href="Secret_Secret.html">Secret</a></li><li><a href="SqliteStorage_SqliteStorage.html">SqliteStorage</a></li><li><a href="User_User.html">User</a></li></ul><h3>Global</h3><ul><li><a href="global.html#LEVELS">LEVELS</a></li><li><a href="global.html#_ensure_loaded">_ensure_loaded</a></li><li><a href="global.html#_registry">_registry</a></li><li><a href="global.html#as_table">as_table</a></li><li><a href="global.html#asymmetric_decrypt">asymmetric_decrypt</a></li><li><a href="global.html#asymmetric_encrypt">asymmetric_encrypt</a></li><li><a href="global.html#attrib_cmd">attrib_cmd</a></li><li><a href="global.html#base64url_decode">base64url_decode</a></li><li><a href="global.html#base64url_encode">base64url_encode</a></li><li><a href="global.html#close">close</a></li><li><a href="global.html#current_user">current_user</a></li><li><a href="global.html#current_version_sync">current_version_sync</a></li><li><a href="global.html#decode_key">decode_key</a></li><li><a href="global.html#decrypt">decrypt</a></li><li><a href="global.html#encode_key">encode_key</a></li><li><a href="global.html#encrypt">encrypt</a></li><li><a href="global.html#fingerprint">fingerprint</a></li><li><a href="global.html#generate_and_save_key_pair">generate_and_save_key_pair</a></li><li><a href="global.html#generate_key">generate_key</a></li><li><a href="global.html#generate_key_pair">generate_key_pair</a></li><li><a href="global.html#generate_symmetric_key">generate_symmetric_key</a></li><li><a href="global.html#get">get</a></li><li><a href="global.html#getSQL">getSQL</a></li><li><a href="global.html#get_log_level">get_log_level</a></li><li><a href="global.html#get_or_create_symmetric_key">get_or_create_symmetric_key</a></li><li><a href="global.html#get_public_key">get_public_key</a></li><li><a href="global.html#get_seeqret_dir">get_seeqret_dir</a></li><li><a href="global.html#get_sync">get_sync</a></li><li><a href="global.html#glob_to_regex">glob_to_regex</a></li><li><a href="global.html#glob_to_sql">glob_to_sql</a></li><li><a href="global.html#harden_vault_windows">harden_vault_windows</a></li><li><a href="global.html#has_command">has_command</a></li><li><a href="global.html#has_glob_chars">has_glob_chars</a></li><li><a href="global.html#hash_message">hash_message</a></li><li><a href="global.html#init">init</a></li><li><a href="global.html#init_db_v001">init_db_v001</a></li><li><a href="global.html#init_db_v002">init_db_v002</a></li><li><a href="global.html#is_encrypted">is_encrypted</a></li><li><a href="global.html#is_initialized">is_initialized</a></li><li><a href="global.html#is_path">is_path</a></li><li><a href="global.html#load_private_key_str">load_private_key_str</a></li><li><a href="global.html#load_public_key_str">load_public_key_str</a></li><li><a href="global.html#load_symmetric_key">load_symmetric_key</a></li><li><a href="global.html#open_db">open_db</a></li><li><a href="global.html#parse_env">parse_env</a></li><li><a href="global.html#parse_version_requirement">parse_version_requirement</a></li><li><a href="global.html#read_registry">read_registry</a></li><li><a href="global.html#read_stdin_until_eof">read_stdin_until_eof</a></li><li><a href="global.html#registry_add">registry_add</a></li><li><a href="global.html#registry_default">registry_default</a></li><li><a href="global.html#registry_list">registry_list</a></li><li><a href="global.html#registry_remove">registry_remove</a></li><li><a href="global.html#registry_resolve">registry_resolve</a></li><li><a href="global.html#registry_use">registry_use</a></li><li><a href="global.html#reload">reload</a></li><li><a href="global.html#require_vault">require_vault</a></li><li><a href="global.html#run">run</a></li><li><a href="global.html#run_migrations">run_migrations</a></li><li><a href="global.html#set_log_level">set_log_level</a></li><li><a href="global.html#upgrade_db">upgrade_db</a></li><li><a href="global.html#validate_current_user">validate_current_user</a></li><li><a href="global.html#write_registry">write_registry</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Wed Apr 08 2026 23:33:17 GMT+0200 (Central European Summer Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

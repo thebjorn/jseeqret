@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: cli/utils.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: cli/utils.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * CLI utility functions.
+ */
+
+import Table from 'cli-table3'
+import { is_initialized, current_user, get_seeqret_dir } from '../core/vault.js'
+import { SqliteStorage } from '../core/sqlite-storage.js'
+
+/**
+ * Print data as a formatted table.
+ * @param {string} headers - comma-separated column headers
+ * @param {Array} items - array of objects with .row property, or arrays
+ */
+export function as_table(headers, items) {
+    const cols = headers.split(',').map(s => s.trim())
+    const rows = items.map(item => item.row || item)
+
+    // Calculate max content width per column (including header)
+    const max_widths = cols.map((header, i) => {
+        const cell_widths = rows.map(row => String(row[i] ?? '').length)
+        return Math.max(header.length, ...cell_widths)
+    })
+
+    const term_width = process.stdout.columns || 80
+    // cli-table3 overhead: 1 left border + 1 right border per col + 1 padding each side per col
+    const overhead = cols.length * 3 + 1
+    const available = Math.max(term_width - overhead, cols.length * 4)
+
+    // Shrink widest columns first until total fits
+    const widths = [...max_widths]
+    const MIN_COL = 4
+    while (widths.reduce((a, b) => a + b, 0) > available) {
+        const max = Math.max(...widths)
+        if (max &lt;= MIN_COL) break
+
+        // Find the second-widest value (or MIN_COL if all are the same)
+        const target = Math.max(MIN_COL, ...widths.filter(w => w &lt; max))
+        // Shrink all widest columns toward the target, but only enough to fit
+        const excess = widths.reduce((a, b) => a + b, 0) - available
+        const widest_count = widths.filter(w => w === max).length
+        const shrink_each = Math.min(max - target, Math.ceil(excess / widest_count))
+
+        for (let i = 0; i &lt; widths.length; i++) {
+            if (widths[i] === max) widths[i] -= shrink_each
+        }
+    }
+
+    const col_widths = widths.map(w => w + 2)  // +2 for cli-table3 padding
+
+    // Render with bold mid-lines, then strip all but the header separator
+    const table = new Table({
+        head: cols,
+        colWidths: col_widths,
+        wordWrap: true,
+        chars: {
+            'mid': '═', 'mid-mid': '╪', 'left-mid': '╞', 'right-mid': '╡',
+        },
+    })
+
+    for (const row of rows) {
+        table.push(row)
+    }
+
+    const output = table.toString()
+
+    // Remove mid-lines except the first one (under header)
+    let found = false
+    const lines = output.split('\n').filter(line => {
+        if (line.includes('╞') &amp;&amp; line.includes('╡')) {
+            if (!found) { found = true; return true }
+            return false
+        }
+        return true
+    })
+
+    console.log(lines.join('\n'))
+}
+
+/**
+ * Validate that the vault is initialized and the current user is valid.
+ * Exits the process if not.
+ */
+export function require_vault() {
+    if (!is_initialized()) {
+        console.error('Error: Vault is not initialized. Run `jseeqret init` first.')
+        process.exit(1)
+    }
+}
+
+/**
+ * Validate the current user is a registered vault user.
+ */
+export async function validate_current_user() {
+    const user = current_user()
+    const storage = new SqliteStorage()
+    const users = await storage.fetch_users({ username: user })
+
+    if (users.length === 0) {
+        console.error('Error: You are not a valid user of this vault.')
+        process.exit(1)
+    }
+}
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="BaseSerializer.html">BaseSerializer</a></li><li><a href="FilterSpec_FilterSpec.html">FilterSpec</a></li><li><a href="Secret_Secret.html">Secret</a></li><li><a href="SqliteStorage_SqliteStorage.html">SqliteStorage</a></li><li><a href="User_User.html">User</a></li></ul><h3>Global</h3><ul><li><a href="global.html#LEVELS">LEVELS</a></li><li><a href="global.html#_ensure_loaded">_ensure_loaded</a></li><li><a href="global.html#_registry">_registry</a></li><li><a href="global.html#as_table">as_table</a></li><li><a href="global.html#asymmetric_decrypt">asymmetric_decrypt</a></li><li><a href="global.html#asymmetric_encrypt">asymmetric_encrypt</a></li><li><a href="global.html#attrib_cmd">attrib_cmd</a></li><li><a href="global.html#base64url_decode">base64url_decode</a></li><li><a href="global.html#base64url_encode">base64url_encode</a></li><li><a href="global.html#close">close</a></li><li><a href="global.html#current_user">current_user</a></li><li><a href="global.html#current_version_sync">current_version_sync</a></li><li><a href="global.html#decode_key">decode_key</a></li><li><a href="global.html#decrypt">decrypt</a></li><li><a href="global.html#encode_key">encode_key</a></li><li><a href="global.html#encrypt">encrypt</a></li><li><a href="global.html#fingerprint">fingerprint</a></li><li><a href="global.html#generate_and_save_key_pair">generate_and_save_key_pair</a></li><li><a href="global.html#generate_key">generate_key</a></li><li><a href="global.html#generate_key_pair">generate_key_pair</a></li><li><a href="global.html#generate_symmetric_key">generate_symmetric_key</a></li><li><a href="global.html#get">get</a></li><li><a href="global.html#getSQL">getSQL</a></li><li><a href="global.html#get_log_level">get_log_level</a></li><li><a href="global.html#get_or_create_symmetric_key">get_or_create_symmetric_key</a></li><li><a href="global.html#get_public_key">get_public_key</a></li><li><a href="global.html#get_seeqret_dir">get_seeqret_dir</a></li><li><a href="global.html#get_sync">get_sync</a></li><li><a href="global.html#glob_to_regex">glob_to_regex</a></li><li><a href="global.html#glob_to_sql">glob_to_sql</a></li><li><a href="global.html#harden_vault_windows">harden_vault_windows</a></li><li><a href="global.html#has_command">has_command</a></li><li><a href="global.html#has_glob_chars">has_glob_chars</a></li><li><a href="global.html#hash_message">hash_message</a></li><li><a href="global.html#init">init</a></li><li><a href="global.html#init_db_v001">init_db_v001</a></li><li><a href="global.html#init_db_v002">init_db_v002</a></li><li><a href="global.html#is_encrypted">is_encrypted</a></li><li><a href="global.html#is_initialized">is_initialized</a></li><li><a href="global.html#is_path">is_path</a></li><li><a href="global.html#load_private_key_str">load_private_key_str</a></li><li><a href="global.html#load_public_key_str">load_public_key_str</a></li><li><a href="global.html#load_symmetric_key">load_symmetric_key</a></li><li><a href="global.html#open_db">open_db</a></li><li><a href="global.html#parse_env">parse_env</a></li><li><a href="global.html#parse_version_requirement">parse_version_requirement</a></li><li><a href="global.html#read_registry">read_registry</a></li><li><a href="global.html#read_stdin_until_eof">read_stdin_until_eof</a></li><li><a href="global.html#registry_add">registry_add</a></li><li><a href="global.html#registry_default">registry_default</a></li><li><a href="global.html#registry_list">registry_list</a></li><li><a href="global.html#registry_remove">registry_remove</a></li><li><a href="global.html#registry_resolve">registry_resolve</a></li><li><a href="global.html#registry_use">registry_use</a></li><li><a href="global.html#reload">reload</a></li><li><a href="global.html#require_vault">require_vault</a></li><li><a href="global.html#run">run</a></li><li><a href="global.html#run_migrations">run_migrations</a></li><li><a href="global.html#set_log_level">set_log_level</a></li><li><a href="global.html#upgrade_db">upgrade_db</a></li><li><a href="global.html#validate_current_user">validate_current_user</a></li><li><a href="global.html#write_registry">write_registry</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Wed Apr 08 2026 23:33:17 GMT+0200 (Central European Summer Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

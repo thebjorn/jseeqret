@@ -2,74 +2,118 @@
 
 ![cicd](https://github.com/thebjorn/jseeqret/actions/workflows/ci.yml/badge.svg)
 [![codecov](https://codecov.io/gh/thebjorn/jseeqret/graph/badge.svg?token=5PQOZLTSYD)](https://codecov.io/gh/thebjorn/jseeqret)
+[![npm version](https://img.shields.io/npm/v/jseeqret)](https://www.npmjs.com/package/jseeqret)
 [![downloads](https://img.shields.io/npm/dt/jseeqret)](https://www.npmjs.com/package/jseeqret)
-[![Socket Badge](https://socket.dev/api/badge/npm/package/jseeqret/0.1.0)](https://socket.dev/npm/package/jseeqret/overview/0.1.0)
-
-<!-- <a href="https://github.com/thebjorn/jseeqret"><img src="docs/github-mark/github-mark.png" width="25" height="25"></a> -->
 
 JavaScript/Electron/Svelte 5 port of [seeqret](https://github.com/thebjorn/seeqret) - a secure secrets manager.
 
 **Fully compatible** with Python seeqret vaults - reads and writes the same database, encryption keys, and formats.
 
-## Setup
+## Exchanging Secrets Between Users
+
+![Secret exchange between Alice and Bob](docs/exchange-demo.gif)
+
+Each user has their own vault with a keypair (X25519). The
+`introduction` command outputs a ready-to-paste `add user` command
+containing the user's public key. The `export -s command` serializer
+outputs one `jseeqret load` command per secret — encrypted with the
+recipient's public key, safe to send over Slack or email.
+
+## Installation
+
+### npm (library + CLI)
 
 ```bash
-npm install
+npm install -g jseeqret
 ```
+
+### Windows installer
+
+Download the signed installer from the
+[latest release](https://github.com/thebjorn/jseeqret/releases/latest).
 
 ## CLI Usage
 
 ```bash
 # Initialize a new vault
-node src/cli/index.js init . --user myuser --email user@example.com
+jseeqret init . --user myuser --email user@example.com
 
 # Add a secret
-node src/cli/index.js add key DB_PASSWORD "s3cret" --app myapp --env prod
+jseeqret add key DB_PASSWORD "s3cret" --app myapp --env prod
 
 # List secrets
-node src/cli/index.js list
-node src/cli/index.js list -f "myapp:prod:*"
+jseeqret list
+jseeqret list -f "myapp:prod:*"
 
 # Get a secret value
-node src/cli/index.js get "myapp:prod:DB_PASSWORD"
+jseeqret get "myapp:prod:DB_PASSWORD"
 
 # Edit a secret
-node src/cli/index.js edit value "myapp:prod:DB_PASSWORD" "new-value"
+jseeqret edit value "myapp:prod:DB_PASSWORD" "new-value"
 
 # Remove a secret
-node src/cli/index.js rm key "myapp:prod:DB_PASSWORD"
+jseeqret rm key "myapp:prod:DB_PASSWORD"
 
 # User management
-node src/cli/index.js users
-node src/cli/index.js owner
-node src/cli/index.js whoami
-node src/cli/index.js keys
+jseeqret users
+jseeqret owner
+jseeqret whoami
+jseeqret keys
+
+# Multi-vault management
+jseeqret vault add myvault /path/to/vault
+jseeqret vault use myvault
+jseeqret vault list
+
+# Export/import
+jseeqret backup
+jseeqret export --to otheruser
+jseeqret load -f export.json
+jseeqret env                    # generate .env from template
+jseeqret importenv .env         # import .env file
+```
+
+## Library API
+
+```javascript
+import { get, get_sync, init, close } from 'jseeqret'
+
+// Async
+const value = await get('myapp:prod:DB_PASSWORD')
+
+// Sync
+const value = get_sync('myapp:prod:DB_PASSWORD')
 ```
 
 ## Electron GUI
 
 ```bash
-npm run dev
+pnpm dev       # development with hot reload
+pnpm build     # production build
+pnpm dist:nsis # build signed Windows installer
 ```
 
 ## Architecture
 
-- `src/core/` - Shared library (crypto, storage, models, filter)
+- `src/core/` - Shared library (crypto, storage, models, API)
 - `src/cli/` - CLI interface (Commander.js)
 - `src/main/` - Electron main process
 - `src/preload/` - Electron preload (IPC bridge)
-- `src/renderer/` - Svelte 5 UI
+- `src/renderer/` - Svelte 5 UI with runes
 
-## Encryption Compatibility
+## Encryption
 
 - **At rest**: Fernet (AES-128-CBC + HMAC-SHA256) - identical to Python `cryptography.fernet`
 - **In transit**: X25519 + XSalsa20-Poly1305 via tweetnacl - compatible with PyNaCl
-- **Signing**: SHA-256
 
 ## Dependencies
 
-- `sql.js` - Pure JS SQLite (WASM)
+- `sql.js` - Pure JS SQLite (WASM, no native bindings)
 - `tweetnacl` / `tweetnacl-util` - NaCl crypto
 - `commander` - CLI framework
 - `cli-table3` - Terminal tables
 - `electron-vite` - Electron + Vite + Svelte 5
+
+## License
+
+MIT

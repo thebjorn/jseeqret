@@ -8,6 +8,6 @@ seeqrets.db
 seeqret/
 # *.bat
 coverage/
-docs/
+# docs/
 plantuml.jar
 .claude/settings.local.json
