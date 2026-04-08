@@ -3,7 +3,7 @@ _schema: https://static.datakortet.no/schema/dkbuild.schema.yaml
 package:
   name: jseeqret
   description: js version of seeqret
-  version: 1.0.0
+  version: 1.0.1
   created: 2026
 
 build:
