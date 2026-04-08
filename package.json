@@ -24,7 +24,6 @@
     "preview": "electron-vite preview",
     "dist": "electron-vite build && electron-builder --win --publish always",
     "dist:nsis": "electron-vite build && electron-builder --win nsis",
-    "dist:portable": "electron-vite build && electron-builder --win portable",
     "cli": "node ./src/cli/index.js",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
@@ -57,12 +56,6 @@
           "arch": [
             "x64"
           ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
         }
       ],
       "icon": "build/icon.ico",
@@ -72,6 +65,7 @@
       }
     },
     "nsis": {
+      "artifactName": "${name}-setup-${version}.${ext}",
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
