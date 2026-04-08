@@ -17,7 +17,7 @@ export const gui_command = new Command('gui')
         const child = spawn(cmd, args, {
             cwd: project_root,
             stdio: 'inherit',
-            shell: true,
+            shell: process.platform === 'win32',
             detached: !opts.dev,
         })
 
