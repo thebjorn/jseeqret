@@ -6,7 +6,7 @@ dist/
 *.key
 seeqrets.db
 seeqret/
-*.bat
+# *.bat
 coverage/
 docs/
 plantuml.jar
