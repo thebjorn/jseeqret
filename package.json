@@ -1,6 +1,6 @@
 {
   "name": "jseeqret",
-  "version": "0.5.7",
+  "version": "0.5.8",
   "type": "module",
   "description": "Secure secrets manager - JavaScript/Electron/Svelte5 port of seeqret",
   "author": "thebjorn",
@@ -64,7 +64,11 @@
           ]
         }
       ],
-      "icon": "build/icon.ico"
+      "icon": "build/icon.ico",
+      "signtoolOptions": {
+        "signingHashAlgorithms": ["sha256"],
+        "sign": "./sign.js"
+      }
     },
     "nsis": {
       "oneClick": false,
