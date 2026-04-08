@@ -4,6 +4,26 @@
   "type": "module",
   "description": "Secure secrets manager - JavaScript/Electron/Svelte5 port of seeqret",
   "author": "thebjorn",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/thebjorn/jseeqret"
+  },
+  "bugs": "https://github.com/thebjorn/jseeqret/issues",
+  "homepage": "https://github.com/thebjorn/jseeqret#readme",
+  "keywords": [
+    "secrets",
+    "secrets-manager",
+    "encryption",
+    "vault",
+    "fernet",
+    "nacl",
+    "cli",
+    "electron"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "packageManager": "pnpm@10.11.0",
   "main": "./out/main/index.js",
   "exports": {
