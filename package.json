@@ -29,7 +29,7 @@
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "bench": "node bench/get-benchmark.js",
-    "docs": "jsdoc -c jsdoc.config.json"
+    "docs:build": "jsdoc -c jsdoc.config.json"
   },
   "build": {
     "appId": "com.jseeqret.app",

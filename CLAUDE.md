@@ -16,7 +16,7 @@ pnpm test:watch        # Watch mode
 pnpm test:coverage     # Coverage report (v8, covers src/core/**)
 pnpm cli               # Run CLI directly: node ./src/cli/index.js
 pnpm bench             # Performance benchmark (get operations/sec)
-pnpm docs              # Generate JSDoc docs
+pnpm docs:build         # Generate JSDoc docs
 ```
 
 Run a single test file: `pnpm exec vitest run tests/api.test.js`
