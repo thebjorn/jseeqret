@@ -6,15 +6,43 @@ This document covers cross-cutting security concerns that span the three archite
 
 ### 1. Plaintext Key Files on Disk
 
-**Risk**: High | **Category**: Key management (all plans)
+**Risk**: Medium (Windows, hardened init) / High (Linux, macOS, or tampered init) | **Category**: Key management (all plans)
 
 All three plans inherit the current design where `seeqret.key`, `private.key`, and `public.key` are stored as plaintext base64-encoded files in the vault directory. Any process or user with read access to the vault directory can extract the encryption keys.
 
+**Re-evaluation in light of `harden_vault_windows` (src/core/fileutils.js):**
+
+On Windows, vault initialization already calls `harden_vault_windows`, which:
+
+1. Runs `icacls <vault_dir> /grant <user>:(F)` and `icacls <vault_dir> /inheritance:r`, removing every ACE except the owning user and breaking inheritance from parent ACLs. Administrators are still implicitly privileged (SeBackupPrivilege / SeTakeOwnershipPrivilege), but no other standard user can read the files.
+2. Sets the `+I` NTFS attribute to exclude the directory from Windows Search indexing, preventing indexed plaintext from leaking into the search index or its backups.
+3. Runs `cipher /e <vault_dir>` to apply EFS (NTFS per-file encryption). EFS wraps the file encryption key with a certificate bound to the user's Windows login credentials (ultimately derived from the user's password or smartcard PIN via DPAPI).
+
+The practical effect is that the "plaintext key files" are, at rest:
+
+- Unreadable by other non-admin users of the same machine (icacls).
+- Unreadable to an offline attacker who steals the disk or a raw backup image, unless they also obtain the user's DPAPI master key (which is itself protected by the user's login secret). This is the same threat model that DPAPI provides for browser cookies, saved Wi-Fi keys, and RDP credentials -- a well-understood and defensible baseline.
+- Still fully readable to any process running as the owning user (including any malware the user executes, and any admin-elevated process).
+- Still readable to Domain Admins or anyone with a data-recovery agent configured in group policy.
+
+So on a correctly-initialized Windows vault, "plaintext key files" is misleading: the files are plaintext *only* from the perspective of a process that is already the vault owner. The on-disk threat model is closer to "DPAPI-protected" than to "world-readable base64".
+
+The residual risk comes from three cases the hardening does **not** cover:
+
+- **Non-Windows platforms.** Linux and macOS have no equivalent step in `harden_vault_windows`. On those platforms the risk genuinely is High and this concern stands unchanged.
+- **Post-init tampering.** If a user (or an installer, or a restore-from-backup) copies the vault directory to a new location, EFS and the restrictive ACL may or may not survive the copy. `cipher /e` is path-scoped; a plain `xcopy` without `/X` drops EFS. A vault moved to a FAT/exFAT USB stick loses *both* NTFS ACLs and EFS. `harden_vault_windows` is only called at init; nothing re-hardens a moved vault.
+- **Process-level compromise.** Any malware running under the owning user account can read the key files trivially. EFS/icacls protect against *other* users and *offline* attackers, not against "the user's own processes are compromised".
+
 **Mitigation**:
-- Vault directories must have restrictive filesystem permissions (documented in deployment guides).
-- Future enhancement: encrypt `seeqret.key` with a passphrase (key derivation via Argon2 or scrypt). The passphrase would be entered at `init()` time.
-- On Windows, consider using DPAPI to protect key files at rest (ties decryption to the Windows user account).
+- Keep `harden_vault_windows` as a hard requirement at init, and treat its successful application as part of the vault's integrity state. Consider recording the expected protection state in `vault_meta` and re-verifying on `open`.
+- Add a `jseeqret doctor` (or similar) command that re-checks `icacls`, `cipher /c`, and `attrib` on demand, and warns loudly if a vault is no longer EFS-encrypted or no longer ACL-restricted (detects the "moved to FAT" and "restored from backup without /X" cases).
+- Re-apply hardening on every `open` if drift is detected, or at minimum refuse to open with a clear remediation message.
+- Extend the equivalent hardening to Linux (chmod 700 + optional `fscrypt`/`gocryptfs` integration) and macOS (chmod 700 + FileVault reliance + optional Keychain-backed wrapping). Until that exists, document the platform gap plainly in the deployment guide.
+- Future enhancement: encrypt `seeqret.key` with a passphrase (key derivation via Argon2 or scrypt). The passphrase would be entered at `init()` time. This is the only mitigation that defends against a user-level process compromise, which EFS cannot.
+- On Windows, a DPAPI wrap of `seeqret.key` would add defense-in-depth against the "admin process scraping another user's vault" case, but is largely redundant with the existing EFS coverage for the single-user workstation scenario.
 - On Linux, consider integration with the kernel keyring or secret service API.
+
+**Net assessment**: on Windows, with init-time hardening intact, the plaintext-key-files concern is materially weaker than originally stated -- it's a Medium, not a High, and the top action item is drift detection, not crypto. On other platforms, and on any vault that has been relocated post-init, it remains a High and the original mitigations apply.
 
 ### 2. No Memory Protection for Secrets
 

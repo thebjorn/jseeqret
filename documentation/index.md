@@ -13,7 +13,12 @@ This is the documentation for developers working on the project. It includes inf
 - [Auto-Rotation](auto-rotation/index.md) — Secret expiration and rotation
 - [Linked Vault](linked-vault/index.md) — Keeping multiple personal vaults in sync
 - [Sync-Merge](sync-merge/index.md) — Conflict resolution algorithm for vault synchronization
+- [Slack Exchange](slack-exchange/index.md) — Using a private Slack channel as a vault-to-vault transport
 
+
+## Platform Hardening
+
+- [Linux & macOS Hardening Options](linux-mac-hardening-options.md) — Platform-native equivalents of Windows' EFS + icacls + DPAPI stack
 
 ## Feature Plans
 
@@ -30,6 +35,7 @@ Each feature area has a dedicated security review covering threat modeling, risk
 - [Server Vault](server-vault/security-concerns.md) — File watcher injection, privilege separation, reload atomicity
 - [Shared Vault](shared-vault/security-concerns.md) — Advisory ACL bypass, identity spoofing, key distribution
 - [Sync-Merge](sync-merge/security-concerns.md) — LWW overwrites, tombstone manipulation, replay attacks
+- [Slack Exchange](slack-exchange/security-concerns.md) — Bot token custody, Slack handle trust binding, retention vs. forward secrecy
 - [Vault-to-Vault](vault-to-vault/security-concerns.md) — No forward secrecy, inbox persistence, unsigned exports
 - [Vault Hierarchy](vault-hierarchy/security-concerns.md) — Trust revocation gaps, DAG scope bypass, policy cascade
 - [Master Vault](master-vault/security-concerns.md) — Reinforces anti-pattern decision (single point of compromise)
