@@ -26,7 +26,12 @@ describe('User model', () => {
     it('toJSON returns plain object', () => {
         const u = new User('alice', 'a@b.com', 'pk')
         expect(u.toJSON()).toEqual({
-            username: 'alice', email: 'a@b.com', pubkey: 'pk',
+            username: 'alice',
+            email: 'a@b.com',
+            pubkey: 'pk',
+            slack_handle: null,
+            slack_key_fingerprint: null,
+            slack_verified_at: null,
         })
     })
 

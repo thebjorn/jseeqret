@@ -33,6 +33,9 @@ import { introduction_command } from './commands/introduction.js'
 import { server_commands } from './commands/server.js'
 import { gui_command } from './commands/gui.js'
 import { vault_commands } from './commands/vault.js'
+import { slack_commands } from './commands/slack.js'
+import { send_command } from './commands/send.js'
+import { receive_command } from './commands/receive.js'
 
 const program = new Command()
 
@@ -75,5 +78,8 @@ program.addCommand(introduction_command)
 program.addCommand(server_commands)
 program.addCommand(gui_command)
 program.addCommand(vault_commands)
+program.addCommand(slack_commands)
+program.addCommand(send_command)
+program.addCommand(receive_command)
 
 program.parse()

@@ -116,6 +116,34 @@ function init_db_v002(db) {
 }
 
 /**
+ * Migration 003: Slack exchange — add slack columns to users and create
+ * the encrypted kv table used for Slack tokens and channel config.
+ *
+ * See documentation/slack-exchange/PLAN.md for the full rationale.
+ */
+function init_db_v003(db) {
+    if (!column_exists(db, 'users', 'slack_handle')) {
+        db.run('ALTER TABLE users ADD COLUMN slack_handle TEXT')
+    }
+    if (!column_exists(db, 'users', 'slack_key_fingerprint')) {
+        db.run('ALTER TABLE users ADD COLUMN slack_key_fingerprint TEXT')
+    }
+    if (!column_exists(db, 'users', 'slack_verified_at')) {
+        db.run('ALTER TABLE users ADD COLUMN slack_verified_at INTEGER')
+    }
+
+    db.run(`
+        CREATE TABLE IF NOT EXISTS kv (
+            key             TEXT PRIMARY KEY,
+            encrypted_value BLOB NOT NULL,
+            updated_at      INTEGER NOT NULL
+        );
+    `)
+
+    db.run('INSERT OR IGNORE INTO migrations (version) VALUES (3)')
+}
+
+/**
  * Run all pending migrations.
  * @param {string} vault_dir
  * @param {string} username
@@ -137,6 +165,10 @@ export async function run_migrations(vault_dir, username, email, pubkey) {
             init_db_v002(db)
         }
 
+        if (version < 3) {
+            init_db_v003(db)
+        }
+
         save_db(db, db_path)
     } finally {
         db.close()
@@ -155,10 +187,22 @@ export async function upgrade_db(vault_dir) {
         const version = current_version_sync(db)
         console.log(`Current database version: ${version}`)
 
+        let upgraded = false
+
         if (version < 2) {
             init_db_v002(db)
-            save_db(db, db_path)
             console.log('Upgraded to version 2.')
+            upgraded = true
+        }
+
+        if (version < 3) {
+            init_db_v003(db)
+            console.log('Upgraded to version 3.')
+            upgraded = true
+        }
+
+        if (upgraded) {
+            save_db(db, db_path)
         } else {
             console.log('Database is up to date.')
         }

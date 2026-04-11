@@ -187,6 +187,18 @@ export class SqliteStorage {
 
     // ---- User operations ----
 
+    /**
+     * Hydrate a User from a row object. Extra slack_* fields are optional
+     * so callers can select a narrower column set when they don't need them.
+     */
+    _user_from_row(r) {
+        return new User(r.username, r.email, r.pubkey, {
+            slack_handle: r.slack_handle,
+            slack_key_fingerprint: r.slack_key_fingerprint,
+            slack_verified_at: r.slack_verified_at,
+        })
+    }
+
     async add_user(user) {
         return this._with_db((db) => {
             db.run(
@@ -200,32 +212,143 @@ export class SqliteStorage {
         return this._with_db((db) => {
             const rows = this._query_rows(
                 db,
-                'SELECT username, email, pubkey FROM users WHERE username = ?',
+                `SELECT username, email, pubkey,
+                        slack_handle, slack_key_fingerprint, slack_verified_at
+                 FROM users WHERE username = ?`,
                 [username]
             )
-            return rows.length > 0
-                ? new User(rows[0].username, rows[0].email, rows[0].pubkey)
-                : null
+            return rows.length > 0 ? this._user_from_row(rows[0]) : null
         })
     }
 
     async fetch_users(filters = {}) {
         const rows = await this.execute_sql(
-            ['SELECT username, email, pubkey FROM users', ' ORDER BY username'],
+            [
+                `SELECT username, email, pubkey,
+                        slack_handle, slack_key_fingerprint, slack_verified_at
+                 FROM users`,
+                ' ORDER BY username',
+            ],
             filters
         )
-        return rows.map(r => new User(r.username, r.email, r.pubkey))
+        return rows.map(r => this._user_from_row(r))
     }
 
     async fetch_admin() {
         return this._with_db((db) => {
             const rows = this._query_rows(
                 db,
-                'SELECT username, email, pubkey FROM users WHERE id = 1'
+                `SELECT username, email, pubkey,
+                        slack_handle, slack_key_fingerprint, slack_verified_at
+                 FROM users WHERE id = 1`
             )
-            return rows.length > 0
-                ? new User(rows[0].username, rows[0].email, rows[0].pubkey)
-                : null
+            return rows.length > 0 ? this._user_from_row(rows[0]) : null
+        })
+    }
+
+    /**
+     * Update the slack identity binding for a user.
+     * @param {string} username
+     * @param {object} fields
+     * @param {string|null} [fields.slack_handle]
+     * @param {string|null} [fields.slack_key_fingerprint]
+     * @param {number|null} [fields.slack_verified_at] - unix seconds
+     */
+    async update_user_slack(username, fields) {
+        return this._with_db((db) => {
+            db.run(
+                `UPDATE users
+                 SET slack_handle = ?,
+                     slack_key_fingerprint = ?,
+                     slack_verified_at = ?
+                 WHERE username = ?`,
+                [
+                    fields.slack_handle ?? null,
+                    fields.slack_key_fingerprint ?? null,
+                    fields.slack_verified_at ?? null,
+                    username,
+                ]
+            )
+        }, true)
+    }
+
+    // ---- Encrypted key-value store (for Slack tokens / channel config) ----
+
+    /**
+     * Fetch a raw encrypted blob from the kv table. Callers are responsible
+     * for Fernet-unwrapping the returned value.
+     * @param {string} key
+     * @returns {Promise<Buffer|null>}
+     */
+    async kv_get(key) {
+        return this._with_db((db) => {
+            const rows = this._query_rows(
+                db,
+                'SELECT encrypted_value FROM kv WHERE key = ?',
+                [key]
+            )
+            if (rows.length === 0) return null
+            const val = rows[0].encrypted_value
+            return val == null ? null : Buffer.from(val)
+        })
+    }
+
+    /**
+     * Upsert a kv row. The value must already be Fernet-encrypted.
+     * @param {string} key
+     * @param {Buffer|Uint8Array|string} encrypted_value
+     */
+    async kv_set(key, encrypted_value) {
+        const blob = Buffer.isBuffer(encrypted_value)
+            ? encrypted_value
+            : Buffer.from(encrypted_value)
+        const now = Math.floor(Date.now() / 1000)
+        return this._with_db((db) => {
+            db.run(
+                `INSERT INTO kv (key, encrypted_value, updated_at)
+                 VALUES (?, ?, ?)
+                 ON CONFLICT(key) DO UPDATE SET
+                     encrypted_value = excluded.encrypted_value,
+                     updated_at = excluded.updated_at`,
+                [key, blob, now]
+            )
+        }, true)
+    }
+
+    /**
+     * Delete a single kv row.
+     * @param {string} key
+     */
+    async kv_delete(key) {
+        return this._with_db((db) => {
+            db.run('DELETE FROM kv WHERE key = ?', [key])
+        }, true)
+    }
+
+    /**
+     * Delete every kv row whose key starts with the given prefix.
+     * Used by `jseeqret slack logout` to wipe all slack.* entries.
+     * @param {string} prefix
+     */
+    async kv_delete_prefix(prefix) {
+        return this._with_db((db) => {
+            db.run('DELETE FROM kv WHERE key LIKE ?', [prefix + '%'])
+        }, true)
+    }
+
+    /**
+     * List (key, updated_at) pairs with a given prefix. Does not return
+     * the encrypted value.
+     * @param {string} prefix
+     * @returns {Promise<Array<{key: string, updated_at: number}>>}
+     */
+    async kv_list_prefix(prefix) {
+        return this._with_db((db) => {
+            return this._query_rows(
+                db,
+                'SELECT key, updated_at FROM kv WHERE key LIKE ? ORDER BY key',
+                [prefix + '%']
+            )
         })
     }
 

@@ -30,7 +30,7 @@ describe('migrations - idempotency', () => {
         const buf = fs.readFileSync(path.join(tmp_dir, 'seeqrets.db'))
         const db = new SQL.Database(buf)
         const version = current_version_sync(db)
-        expect(version).toBe(2)
+        expect(version).toBe(3)
         db.close()
     })
 })
@@ -78,10 +78,10 @@ describe('upgrade_db', () => {
         // Upgrade
         await upgrade_db(tmp_dir)
 
-        // Verify it's v2
+        // Verify it advanced to the latest version (now v3)
         const buf2 = fs.readFileSync(path.join(tmp_dir, 'seeqrets.db'))
         const db2 = new SQL2.Database(buf2)
-        expect(current_version_sync(db2)).toBe(2)
+        expect(current_version_sync(db2)).toBe(3)
 
         // Check new columns exist
         const info = db2.exec('PRAGMA table_info(secrets)')
@@ -101,7 +101,7 @@ describe('upgrade_db', () => {
         const SQL = await initSqlJs()
         const buf = fs.readFileSync(path.join(tmp_dir, 'seeqrets.db'))
         const db = new SQL.Database(buf)
-        expect(current_version_sync(db)).toBe(2)
+        expect(current_version_sync(db)).toBe(3)
         db.close()
     })
 })
