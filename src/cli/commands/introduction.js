@@ -2,9 +2,10 @@ import { Command } from 'commander'
 import { SqliteStorage } from '../../core/sqlite-storage.js'
 import { current_user } from '../../core/vault.js'
 import { require_vault } from '../utils.js'
+import { compute_fingerprint } from '../../core/slack/identity.js'
 
 export const introduction_command = new Command('introduction')
-    .description('Print your public key for vault onboarding')
+    .description('Print your public key and fingerprint for vault onboarding')
     .action(async () => {
         require_vault()
         const storage = new SqliteStorage()
@@ -19,4 +20,6 @@ export const introduction_command = new Command('introduction')
 
         console.log('Please add me to your vault!\n')
         console.log(`jseeqret add user --username ${user.username} --email ${user.email} --pubkey ${user.pubkey}`)
+        console.log(`\nPublic key fingerprint: ${compute_fingerprint(user)}`)
+        console.log('(Read this aloud on a voice call to verify your identity.)')
     })

@@ -34,7 +34,23 @@ import { WebClient } from '@slack/web-api'
  * of the published Slack app before the first release.
  */
 export const SLACK_CLIENT_ID = process.env.JSEEQRET_SLACK_CLIENT_ID
-    || '0000000000.0000000000000'
+    || '25158173844.10894054396469'
+
+/**
+ * Slack Client Secret. Required by oauth.v2.access even with PKCE.
+ * Not security-critical for a public-distribution app with user tokens
+ * (the secret is shipped in every client), but avoid pasting in logs.
+ */
+export const SLACK_CLIENT_SECRET = process.env.JSEEQRET_SLACK_CLIENT_SECRET
+    || 'ca7ee68f19624a212755c6ed3cc1d91b'
+
+/**
+ * Public HTTPS redirect URL. Slack requires HTTPS for redirect URIs,
+ * so we bounce through a hosted page that extracts the loopback port
+ * from the state parameter and redirects to http://127.0.0.1:PORT/callback.
+ */
+export const SLACK_REDIRECT_URL =
+    'https://www.norsktest.no/jseeqret/oauth/callback.html'
 
 /**
  * The set of User Token Scopes jseeqret requests. Keep in sync with
@@ -104,7 +120,10 @@ function _start_loopback(expected_state) {
                 return
             }
 
-            if (got_state !== expected_state) {
+            // The full state is "{port}-{csrf_token}".  The bounce
+            // page forwards it verbatim; we verify the csrf_token part.
+            const got_csrf = (got_state || '').split('-').slice(1).join('-')
+            if (got_csrf !== expected_state) {
                 res.writeHead(400, { 'Content-Type': 'text/html' })
                 res.end('<h1>Invalid state</h1>')
                 reject_code(new Error('slack oauth: state mismatch'))
@@ -163,10 +182,15 @@ export async function run_oauth_flow(opts = {}) {
         || (url => console.log(`Open this URL in your browser:\n  ${url}`))
 
     const { verifier, challenge } = _pkce_pair()
-    const state = _random_url_safe(24)
+    const csrf_token = _random_url_safe(24)
 
-    const { server, port, wait_for_code } = await _start_loopback(state)
-    const redirect_uri = `http://127.0.0.1:${port}/callback`
+    const { server, port, wait_for_code } = await _start_loopback(csrf_token)
+    // State encodes the loopback port so the hosted bounce page can
+    // redirect back to http://127.0.0.1:PORT/callback.  The format
+    // is "{port}-{csrf_token}".  The loopback server verifies the
+    // csrf_token portion; the bounce page reads only the port.
+    const state = `${port}-${csrf_token}`
+    const redirect_uri = SLACK_REDIRECT_URL
 
     const authorize_url = new URL('https://slack.com/oauth/v2/authorize')
     authorize_url.searchParams.set('client_id', SLACK_CLIENT_ID)
@@ -189,12 +213,10 @@ export async function run_oauth_flow(opts = {}) {
             ),
         ])
 
-        // Exchange the code. oauth.v2.access does not require an auth
-        // header for PKCE user-token exchange, so we use an unauthed
-        // WebClient.
         const web = new WebClient()
         const r = await web.oauth.v2.access({
             client_id: SLACK_CLIENT_ID,
+            client_secret: SLACK_CLIENT_SECRET,
             code,
             redirect_uri,
             code_verifier: verifier,

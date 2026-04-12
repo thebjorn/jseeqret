@@ -24,6 +24,8 @@ import {
     bind_slack_handle,
     compute_fingerprint,
 } from '../../core/slack/identity.js'
+import { upgrade_db } from '../../core/migrations.js'
+import { get_seeqret_dir } from '../../core/vault.js'
 import { createHash } from 'crypto'
 
 /**
@@ -58,6 +60,7 @@ const slack_login = new Command('login')
     .description('OAuth login to Slack and pick an exchange channel')
     .action(async () => {
         require_vault()
+        await upgrade_db(get_seeqret_dir())
         const storage = new SqliteStorage()
 
         console.log('Starting Slack OAuth flow...')
@@ -117,6 +120,9 @@ const slack_login = new Command('login')
 
         console.log(`\nOK. Exchange channel set to #${chosen.name} (${chosen.id}).`)
         console.log('Next: run `jseeqret slack doctor` before sending.')
+
+        // The Slack WebClient keeps an HTTP agent alive; force a clean exit.
+        process.exit(0)
     })
 
 // ---- slack logout ----
@@ -342,9 +348,10 @@ const slack_doctor = new Command('doctor')
         if (!all_ok) {
             console.error('\nslack doctor: one or more checks failed.')
             process.exit(1)
-        } else {
-            console.log('\nslack doctor: all checks passed.')
         }
+
+        console.log('\nslack doctor: all checks passed.')
+        process.exit(0)
     })
 
 // ---- group ----
