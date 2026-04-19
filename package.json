@@ -49,7 +49,7 @@
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "bench": "node bench/get-benchmark.js",
-    "docs:build": "jsdoc -c jsdoc.config.json"
+    "docs:build": "typedoc"
   },
   "build": {
     "appId": "com.jseeqret.app",
@@ -117,8 +117,9 @@
     "electron": "^41.0.2",
     "electron-builder": "^26.8.1",
     "electron-vite": "^5.0.0",
-    "jsdoc": "^4.0.5",
     "svelte": "^5.53.12",
+    "typedoc": "^0.28.19",
+    "typescript": "^6.0.3",
     "vite": "^6.4.2",
     "vitest": "^4.1.0"
   }
