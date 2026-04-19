@@ -4,6 +4,14 @@ import { SqliteStorage } from '../../core/sqlite-storage.js'
 import { FilterSpec } from '../../core/filter.js'
 import { require_vault } from '../utils.js'
 
+/**
+ * Set Windows user-level environment variables from vault secrets
+ * (uses `setx` under the hood). Only supported on `win32`. Use
+ * `--dry-run` to preview the variables that would be written.
+ *
+ * @example
+ * jseeqret setenv 'myapp:prod:*' --dry-run
+ */
 export const setenv_command = new Command('setenv')
     .description('Set Windows environment variables from vault secrets')
     .argument('<filter>', 'Filter spec (app:env:key)')

@@ -356,6 +356,18 @@ const slack_doctor = new Command('doctor')
 
 // ---- group ----
 
+/**
+ * Slack-based exchange transport. Subcommands cover OAuth login,
+ * channel selection, handle-to-user bindings, preflight health checks
+ * (`slack doctor`), and tearing down saved config (`slack logout`).
+ * See the "Slack Exchange" guide for the full flow.
+ *
+ * @example
+ * jseeqret slack login
+ *
+ * @example
+ * jseeqret slack doctor --accept
+ */
 export const slack_commands = new Command('slack')
     .description('Slack-based secret exchange transport')
 

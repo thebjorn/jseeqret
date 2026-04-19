@@ -104,6 +104,17 @@ async function _run_once(storage, snap) {
     return imported
 }
 
+/**
+ * Pull encrypted secret blobs from a configured transport and import
+ * them into the vault. Currently supports `--via slack`; `--watch`
+ * long-polls for new messages at `--interval` seconds.
+ *
+ * @example
+ * jseeqret receive --via slack
+ *
+ * @example
+ * jseeqret receive --via slack --watch --interval 15
+ */
 export const receive_command = new Command('receive')
     .description('Receive and import encrypted secrets from a transport')
     .option('--via <transport>', 'transport: slack', 'slack')

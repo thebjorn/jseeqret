@@ -7,6 +7,14 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 const project_root = resolve(__dirname, '..', '..', '..')
 
+/**
+ * Launch the Electron desktop UI against the current vault. In the
+ * published binary it spawns the packaged `electron` process; `--dev`
+ * runs `npm run dev` with hot reload for working on the UI itself.
+ *
+ * @example
+ * jseeqret gui
+ */
 export const gui_command = new Command('gui')
     .description('Launch the Electron GUI')
     .option('--dev', 'Start in development mode with hot reload')

@@ -2,6 +2,14 @@ import { Command } from 'commander'
 import { list_serializers } from '../../core/serializers/index.js'
 import { as_table } from '../utils.js'
 
+/**
+ * List the output serializers registered with the vault (used by
+ * `export` / `load`). Output is a compact table of tag, version, and
+ * a one-line description per serializer.
+ *
+ * @example
+ * jseeqret serializers
+ */
 export const serializers_command = new Command('serializers')
     .description('List available serializers')
     .action(() => {

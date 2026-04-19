@@ -4,6 +4,14 @@ import { current_user } from '../../core/vault.js'
 import { require_vault } from '../utils.js'
 import { compute_fingerprint } from '../../core/slack/identity.js'
 
+/**
+ * Print a ready-to-paste `jseeqret add user ...` line plus the public
+ * key fingerprint so a vault admin can onboard you. The fingerprint
+ * is meant to be read aloud on a voice call to verify identity.
+ *
+ * @example
+ * jseeqret introduction | pbcopy
+ */
 export const introduction_command = new Command('introduction')
     .description('Print your public key and fingerprint for vault onboarding')
     .action(async () => {

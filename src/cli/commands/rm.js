@@ -22,6 +22,14 @@ const rm_key = new Command('key')
         console.log(`Removed ${secrets.length} secret(s).`)
     })
 
+/**
+ * Remove secrets from the vault. The single subcommand `rm key`
+ * removes every secret matching a filter spec. Destructive and not
+ * recoverable unless you have a prior `backup`.
+ *
+ * @example
+ * jseeqret rm key myapp:dev:OLD_TOKEN
+ */
 export const rm_commands = new Command('rm')
     .description('Remove a secret from the vault')
 

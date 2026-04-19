@@ -95,6 +95,18 @@ function _preflight_slack_cfg(snap) {
     return problems
 }
 
+/**
+ * Encrypt secrets for a recipient and deliver them via a transport —
+ * either a local file (default) or Slack. With `--via slack` the blob
+ * is uploaded as a file in the configured exchange channel and an
+ * inbox thread is started; the recipient runs `jseeqret receive`.
+ *
+ * @example
+ * jseeqret send 'myapp:prod:*' --to alice --via file -o alice-prod.json
+ *
+ * @example
+ * jseeqret send 'myapp:prod:*' --to alice --via slack
+ */
 export const send_command = new Command('send')
     .description('Send encrypted secrets to a user via file or Slack')
     .argument('[filters...]', 'filter specs (app:env:key)')

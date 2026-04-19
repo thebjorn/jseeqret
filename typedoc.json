@@ -5,6 +5,11 @@
     "out": "docs",
     "name": "jseeqret",
     "readme": "README.md",
+    "projectDocuments": [
+        "docs-src/getting-started.md",
+        "docs-src/architecture.md",
+        "docs-src/slack-exchange.md"
+    ],
     "includeVersion": true,
     "excludePrivate": true,
     "excludeInternal": true,

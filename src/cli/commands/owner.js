@@ -2,6 +2,13 @@ import { Command } from 'commander'
 import { SqliteStorage } from '../../core/sqlite-storage.js'
 import { require_vault, as_table } from '../utils.js'
 
+/**
+ * Print the username, email, and public key of the vault owner (the
+ * user whose private key lives in `private.key`).
+ *
+ * @example
+ * jseeqret owner
+ */
 export const owner_command = new Command('owner')
     .description('Show the owner of the vault')
     .action(async () => {

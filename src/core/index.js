@@ -1,3 +1,17 @@
+/**
+ * Public barrel for the jseeqret core library. Re-exports the
+ * high-level API (`get`, `init`, `close`), storage, models, crypto,
+ * filter spec, vault helpers, migrations, serializer registry, and
+ * `.env` parser. Consumers should import from here rather than
+ * reaching into individual sub-modules.
+ *
+ * @module core
+ * @example
+ * import { get, init, FilterSpec } from 'jseeqret/core'
+ * await init('/srv/.seeqret')
+ * const value = await get('myapp:prod:DB_URL')
+ */
+
 export { Secret } from './models/secret.js'
 export { User } from './models/user.js'
 export { SqliteStorage } from './sqlite-storage.js'

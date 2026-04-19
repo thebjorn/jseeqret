@@ -6,6 +6,18 @@ import { SqliteStorage } from '../../core/sqlite-storage.js'
 const require = createRequire(import.meta.url)
 const { version: pkg_version } = require('../../../package.json')
 
+/**
+ * Print a summary of the active vault: path, owner, schema version,
+ * user and secret counts, plus a command cheat sheet. Use `--dump` to
+ * emit the same information as JSON for consumption by scripts or the
+ * GUI.
+ *
+ * @example
+ * jseeqret info
+ *
+ * @example
+ * jseeqret info --dump | jq .vault_dir
+ */
 export const info_command = new Command('info')
     .description('Show vault info')
     .option('-d, --dump', 'Dump vault info as JSON')

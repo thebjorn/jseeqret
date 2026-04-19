@@ -91,6 +91,14 @@ const server_init = new Command('init')
         console.log(`  export SEEQRET="${vault_dir}"`)
     })
 
+/**
+ * Server vault management. The single subcommand `server init`
+ * provisions a headless vault (no GUI, no interactive prompts)
+ * suitable for CI runners and production hosts.
+ *
+ * @example
+ * jseeqret server init --pubkey $CI_PUBKEY --key $CI_SYMKEY
+ */
 export const server_commands = new Command('server')
     .description('Server vault management')
 

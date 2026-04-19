@@ -6,6 +6,15 @@ import { generate_symmetric_key, generate_and_save_key_pair } from '../../core/c
 import { encode_key } from '../../core/crypto/nacl.js'
 import { harden_vault_windows } from '../../core/fileutils.js'
 
+/**
+ * Create a new vault in `DIR/seeqret/`. Generates `seeqrets.db`, a
+ * symmetric `seeqret.key`, and a `public.key`/`private.key` pair;
+ * pass `--pubkey` / `--key` to import existing material instead of
+ * generating fresh. `--user` and `--email` identify the vault owner.
+ *
+ * @example
+ * jseeqret init ./my-vault --user alice --email alice@example.com
+ */
 export const init_command = new Command('init')
     .description('Initialize a new vault in DIR')
     .argument('[dir]', 'Directory to initialize vault in', '.')

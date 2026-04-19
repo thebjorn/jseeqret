@@ -34,6 +34,18 @@ const edit_value = new Command('value')
         as_table('App, Env, Key, Value, Type', secrets)
     })
 
+/**
+ * Update secrets in the vault. The single subcommand `edit value`
+ * updates secrets matching a filter spec; with `--all` every match is
+ * updated without prompting.
+ *
+ * @example
+ * jseeqret edit value myapp:prod:DB_PASSWORD newsecret
+ *
+ * @example
+ * // Rotate a key across all environments without prompting
+ * jseeqret edit value 'myapp:*:API_TOKEN' $NEW_TOKEN --all
+ */
 export const edit_commands = new Command('edit')
     .description('Edit a secret in the vault')
 

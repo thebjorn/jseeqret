@@ -107,6 +107,19 @@ const add_user = new Command('user')
         console.log(`Added user: ${opts.username}`)
     })
 
+/**
+ * Add a new secret (or multi-line secret via `add text`) or user to
+ * the vault. Use `<app>:<env>:<key>` scoping with `--app` / `--env`;
+ * values are encrypted with the vault's symmetric key before storage.
+ *
+ * @example
+ * // Single-line secret
+ * jseeqret add key DB_PASSWORD hunter2 --app myapp --env prod
+ *
+ * @example
+ * // Multi-line secret from stdin
+ * cat key.pem | jseeqret add text PRIVATE_KEY --app myapp
+ */
 export const add_commands = new Command('add')
     .description('Add a new secret or user')
 

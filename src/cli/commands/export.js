@@ -8,6 +8,15 @@ import { decode_key } from '../../core/crypto/nacl.js'
 import { get_seeqret_dir } from '../../core/vault.js'
 import { require_vault } from '../utils.js'
 
+/**
+ * Encrypt a set of secrets for one or more recipient users and write
+ * the blob to a file (or stdout). The recipient decrypts with their
+ * private key via `jseeqret load`. Use `--serializer` to pick the
+ * output format (default `json-crypt`).
+ *
+ * @example
+ * jseeqret export --to alice -f 'myapp:prod:*' -o alice-prod.json
+ */
 export const export_command = new Command('export')
     .description('Export secrets encrypted for a user')
     .requiredOption('--to <user...>', 'Recipient username(s)')

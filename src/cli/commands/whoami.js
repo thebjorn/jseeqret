@@ -3,6 +3,15 @@ import { SqliteStorage } from '../../core/sqlite-storage.js'
 import { current_user } from '../../core/vault.js'
 import { require_vault } from '../utils.js'
 
+/**
+ * Print the current user's name and their role — `(owner)` for the
+ * vault admin, bare username for a registered member, or an
+ * unregistered note otherwise. Useful for scripts that need to
+ * branch on identity.
+ *
+ * @example
+ * jseeqret whoami
+ */
 export const whoami_command = new Command('whoami')
     .description('Display the current user and their role')
     .action(async () => {

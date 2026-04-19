@@ -11,7 +11,7 @@ JavaScript/Electron/Svelte 5 port of [seeqret](https://github.com/thebjorn/seeqr
 
 ## Exchanging Secrets Between Users
 
-![Secret exchange between Alice and Bob](docs/exchange-demo.gif)
+![Secret exchange between Alice and Bob](media/exchange-demo.gif)
 
 Each user has their own vault with a keypair (X25519). The
 `introduction` command outputs a ready-to-paste `add user` command

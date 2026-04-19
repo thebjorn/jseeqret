@@ -45,6 +45,19 @@ function check_version(requirement, current_version) {
     }
 }
 
+/**
+ * Materialize an `.env` file in the current directory from an
+ * `env.template` driver file. Template entries can be raw filter specs,
+ * `OUTPUT_NAME=filter` renames, or `@seeqret>=X.Y` version guards that
+ * abort if the installed tool is too old.
+ *
+ * @example
+ * // env.template
+ * // @seeqret>=1.0
+ * // myapp:prod:*
+ * // DB_URL=myapp:prod:DATABASE_URL
+ * jseeqret env
+ */
 export const env_command = new Command('env')
     .description('Generate .env file from env.template')
     .action(async () => {

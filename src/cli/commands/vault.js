@@ -7,6 +7,15 @@ import {
 } from '../../core/vault-registry.js'
 import { as_table } from '../utils.js'
 
+/**
+ * Manage the vault registry — a map of named vault paths stored in the
+ * user's config dir. Lets you `add`, `remove`, `list`, and switch the
+ * default vault with `use` without editing the `JSEEQRET` env var.
+ *
+ * @example
+ * jseeqret vault add work /srv/vaults/work
+ * jseeqret vault use work
+ */
 const vault_commands = new Command('vault')
     .description('Manage vault registry')
 

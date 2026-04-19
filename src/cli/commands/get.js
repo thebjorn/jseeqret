@@ -3,6 +3,14 @@ import { SqliteStorage } from '../../core/sqlite-storage.js'
 import { FilterSpec } from '../../core/filter.js'
 import { require_vault } from '../utils.js'
 
+/**
+ * Print the value of a secret to stdout. The filter must resolve to
+ * exactly one secret — otherwise the command errors. Suitable for
+ * scripting (`export DB_URL=$(jseeqret get myapp:prod:DB_URL)`).
+ *
+ * @example
+ * jseeqret get myapp:prod:DB_URL
+ */
 export const get_command = new Command('get')
     .description('Get the value of a secret')
     .argument('<filter>', 'Filter spec (app:env:key)')

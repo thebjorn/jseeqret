@@ -1,0 +1,70 @@
+<!DOCTYPE html><html class="default" lang="en" data-base="../"><head><meta charset="utf-8"/><meta http-equiv="x-ua-compatible" content="IE=edge"/><title>Architecture | jseeqret - v1.0.4</title><meta name="description" content="Documentation for jseeqret"/><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="stylesheet" href="../assets/style.css"/><link rel="stylesheet" href="../assets/highlight.css"/><script defer src="../assets/main.js"></script><script async src="../assets/icons.js" id="tsd-icons-script"></script><script async src="../assets/search.js" id="tsd-search-script"></script><script async src="../assets/navigation.js" id="tsd-nav-script"></script><script async src="../assets/hierarchy.js" id="tsd-hierarchy-script"></script></head><body><script>document.documentElement.dataset.theme = localStorage.getItem("tsd-theme") || "os";document.body.style.display="none";setTimeout(() => window.app?app.showPage():document.body.style.removeProperty("display"),500)</script><header class="tsd-page-toolbar"><div class="tsd-toolbar-contents container"><a href="../index.html" class="title">jseeqret - v1.0.4</a><div id="tsd-toolbar-links"></div><button id="tsd-search-trigger" class="tsd-widget" aria-label="Search"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-search"></use></svg></button><dialog id="tsd-search" aria-label="Search"><input role="combobox" id="tsd-search-input" aria-controls="tsd-search-results" aria-autocomplete="list" aria-expanded="true" autocapitalize="off" autocomplete="off" placeholder="Search the docs" maxLength="100"/><ul role="listbox" id="tsd-search-results"></ul><div id="tsd-search-status" aria-live="polite" aria-atomic="true"><div>Preparing search index...</div></div></dialog><a href="#" class="tsd-widget menu" id="tsd-toolbar-menu-trigger" data-toggle="menu" aria-label="Menu"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-menu"></use></svg></a></div></header><div class="container container-main"><div class="col-content"><div class="tsd-page-title"><ul class="tsd-breadcrumb" aria-label="Breadcrumb"><li><a href="" aria-current="page">Architecture</a></li></ul></div><div class="tsd-panel tsd-typography"><h1 id="architecture" class="tsd-anchor-link">Architecture<a href="#architecture" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h1>
+<p>jseeqret is a three-layer project sharing one core:</p>
+<pre><code><span class="hl-1">+--------------------+   +----------------+   +----------------------+</span><br/><span class="hl-1">|  </span><span class="hl-0">CLI</span><span class="hl-1"> (</span><span class="hl-6">Commander</span><span class="hl-1">)   |   |  </span><span class="hl-6">Electron</span><span class="hl-1"> </span><span class="hl-7">UI</span><span class="hl-1">   |   |  </span><span class="hl-6">Node</span><span class="hl-1">.</span><span class="hl-6">js</span><span class="hl-1"> </span><span class="hl-6">library</span><span class="hl-1">     |</span><br/><span class="hl-1">|  </span><span class="hl-6">src</span><span class="hl-1">/</span><span class="hl-6">cli</span><span class="hl-4">/**        |   |  src/main/**   |   |  (consumers of core) |</span><br/><span class="hl-4">|                    |   |  src/renderer  |   |                      |</span><br/><span class="hl-4">+---------+----------+   +--------+-------+   +-----------+----------+</span><br/><span class="hl-4">          |                       |                       |</span><br/><span class="hl-4">          +-----------+-----------+-----------+-----------+</span><br/><span class="hl-4">                      |                       |</span><br/><span class="hl-4">                      v                       v</span><br/><span class="hl-4">               +---------------------------------+</span><br/><span class="hl-4">               |  core  (src/core/**)            |</span><br/><span class="hl-4">               |  - models: Secret, User         |</span><br/><span class="hl-4">               |  - crypto: Fernet + NaCl        |</span><br/><span class="hl-4">               |  - storage: sql.js SQLite        |</span><br/><span class="hl-4">               |  - filter: app:env:key matcher  |</span><br/><span class="hl-4">               |  - serializers: import/export   |</span><br/><span class="hl-4">               +---------------------------------+</span>
+</code><button>Copy</button></pre>
+
+<p>All three frontends share the same core, which is what the published
+npm package exports. Anything that can be done from the CLI can be
+done from a Node.js script via the library.</p>
+<h2 id="vault-directory" class="tsd-anchor-link">Vault directory<a href="#vault-directory" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<p>A vault is a directory with four artifacts:</p>
+<table>
+<thead>
+<tr>
+<th>file</th>
+<th>purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>seeqrets.db</code></td>
+<td>SQLite database (sql.js/WASM, no native deps)</td>
+</tr>
+<tr>
+<td><code>seeqret.key</code></td>
+<td>base64 Fernet key — encrypts secret values</td>
+</tr>
+<tr>
+<td><code>public.key</code></td>
+<td>base64 NaCl public key for the vault owner</td>
+</tr>
+<tr>
+<td><code>private.key</code></td>
+<td>base64 NaCl private key — <strong>do not share</strong></td>
+</tr>
+</tbody>
+</table>
+<p>The database schema is managed by migrations in
+<code>src/core/migrations.js</code> and mirrors the Python <code>seeqret</code> layout, so a
+vault created by either tool can be opened by the other.</p>
+<h2 id="crypto-stack" class="tsd-anchor-link">Crypto stack<a href="#crypto-stack" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<p>Two algorithms, two jobs:</p>
+<ul>
+<li>
+<p><strong>Fernet</strong> (<code>core/crypto/fernet</code>) — symmetric AES-128-CBC with
+HMAC-SHA256. Every secret value stored in <code>seeqrets.db</code> is
+Fernet-encrypted with the vault's <code>seeqret.key</code>. Guards against the
+DB file being copied without the key.</p>
+</li>
+<li>
+<p><strong>NaCl</strong> (<code>core/crypto/nacl</code>) — asymmetric X25519 + XSalsa20-Poly1305
+via tweetnacl. Used for peer-to-peer exchange: <code>export</code>, <code>send</code>,
+<code>receive</code>. Each user owns a NaCl keypair, and blobs are sealed for a
+specific recipient's public key.</p>
+</li>
+</ul>
+<p>See <a href="Slack_Exchange.html">Slack Exchange</a> for how the transport layer
+uses NaCl to ship encrypted blobs through an untrusted intermediary.</p>
+<h2 id="storage" class="tsd-anchor-link">Storage<a href="#storage" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<p><code>SqliteStorage</code> (<code>core/sqlite-storage.js</code>) wraps sql.js — a pure-JS
+WebAssembly build of SQLite. This is a deliberate choice:</p>
+<ul>
+<li>No native bindings means the same code runs in Electron's renderer
+and in a Lambda runtime without rebuilding.</li>
+<li>The entire database file is a single artifact; copying it is a
+complete backup (still useless without <code>seeqret.key</code>).</li>
+</ul>
+<p><code>fetch_secrets({ app, env, key })</code> is the main read path; the
+<code>FilterSpec</code> class turns a user-typed <code>myapp:*:DB_*</code> string into that
+object via glob-to-SQL translation.</p>
+</div></div><div class="col-sidebar"><div class="page-menu"><div class="tsd-navigation settings"><details class="tsd-accordion"><summary class="tsd-accordion-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg><h3>Settings</h3></summary><div class="tsd-accordion-details"><div class="tsd-filter-visibility"><span class="settings-label">Member Visibility</span><ul id="tsd-filter-options"><li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-protected" name="protected"/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>Protected</span></label></li><li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-inherited" name="inherited" checked/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>Inherited</span></label></li><li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-external" name="external"/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>External</span></label></li></ul></div><div class="tsd-theme-toggle"><label class="settings-label" for="tsd-theme">Theme</label><select id="tsd-theme"><option value="os">OS</option><option value="light">Light</option><option value="dark">Dark</option></select></div></div></details></div><details open class="tsd-accordion tsd-page-navigation"><summary class="tsd-accordion-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg><h3>On This Page</h3></summary><div class="tsd-accordion-details"><a href="#architecture"><span>Architecture</span></a><ul><li><a href="#vault-directory"><span>Vault directory</span></a></li><li><a href="#crypto-stack"><span>Crypto stack</span></a></li><li><a href="#storage"><span>Storage</span></a></li></ul></div></details></div><div class="site-menu"><nav class="tsd-navigation"><a href="../modules.html">jseeqret - v1.0.4</a><ul class="tsd-small-nested-navigation" id="tsd-nav-container"><li>Loading...</li></ul></nav></div></div></div><footer><p class="tsd-generator">Generated using <a href="https://typedoc.org/" target="_blank">TypeDoc</a></p></footer><div class="overlay"></div></body></html>

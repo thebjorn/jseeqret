@@ -7,6 +7,15 @@ import { decode_key } from '../../core/crypto/nacl.js'
 import { get_seeqret_dir } from '../../core/vault.js'
 import { require_vault } from '../utils.js'
 
+/**
+ * Import secrets that were encrypted for this user with
+ * `jseeqret export`. Accepts the blob either as a file (`--file`) or
+ * inline (`--value`); `--from-user` selects which sender's public key
+ * to verify against.
+ *
+ * @example
+ * jseeqret load -u alice -f alice-prod.json
+ */
 export const load_command = new Command('load')
     .description('Import exported secrets into the vault')
     .option('-u, --from-user <user>', 'Sender username')

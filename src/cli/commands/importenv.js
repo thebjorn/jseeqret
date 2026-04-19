@@ -6,6 +6,14 @@ import { Secret } from '../../core/models/secret.js'
 import { parse_env } from '../../core/envfile.js'
 import { require_vault } from '../utils.js'
 
+/**
+ * Bulk-import key/value pairs from an existing `.env` file. Existing
+ * secrets are skipped unless `--update` is passed; `--dry-run`
+ * previews the action without touching the vault.
+ *
+ * @example
+ * jseeqret importenv .env --app myapp --env prod --dry-run
+ */
 export const importenv_command = new Command('importenv')
     .description('Import secrets from a .env file')
     .argument('<file>', 'Path to .env file')
