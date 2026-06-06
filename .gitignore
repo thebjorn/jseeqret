@@ -11,3 +11,8 @@ coverage/
 # docs/
 plantuml.jar
 .claude/settings.local.json
+bench.bat
+ljs.bat
+local-jseeqret.bat
+pjs.bat
+prod-jseeqret.bat
