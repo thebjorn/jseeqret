@@ -2,3 +2,6 @@ onlyBuiltDependencies:
   - electron
   - electron-winstaller
   - esbuild
+minimumReleaseAge: 10080
+blockExoticSubdeps: true
+trustPolicy: no-downgrade
