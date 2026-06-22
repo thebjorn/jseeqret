@@ -11,6 +11,7 @@ This is the documentation for developers working on the project. It includes inf
 - [Master Vault](master-vault/index.md) — Centralized vault design and trade-offs
 - [Vault Hierarchy](vault-hierarchy/index.md) — Web of trust and granular access control
 - [Auto-Rotation](auto-rotation/index.md) — Secret expiration and rotation
+- [Rotation](rotation/index.md) — Active secret rotation: safe staging, promotion, and propagation
 - [Linked Vault](linked-vault/index.md) — Keeping multiple personal vaults in sync
 - [Sync-Merge](sync-merge/index.md) — Conflict resolution algorithm for vault synchronization
 - [Slack Exchange](slack-exchange/index.md) — Using a private Slack channel as a vault-to-vault transport
