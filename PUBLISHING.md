@@ -9,7 +9,8 @@ package, and a GitHub release with auto-generated release notes.
 - **Sectigo EV hardware token** plugged in (SafeNet middleware installed)
 - **`GH_TOKEN`** environment variable set to a GitHub personal access token
   with `repo` scope (for `gh` CLI and electron-builder)
-- **`npm_token`** configured as a GitHub repository secret (for CI npm publish)
+- **npm Trusted Publishing (OIDC)** configured for the `jseeqret` package on
+  npmjs.org (links this repo + `npm-publish.yml`; no npm token needed)
 - **pnpm** installed (`npm i -g pnpm`)
 - **Windows SDK** installed (provides `signtool.exe`, used by `sign.js`)
 
@@ -57,12 +58,12 @@ git push origin master
 git push origin v<new_version>
 ```
 
-Pushing the tag triggers two CI workflows:
-
-- **`build-release.yml`** — builds the Electron app on GitHub Actions and
-  uploads unsigned artifacts. (CI cannot sign because the hardware token
-  is not available remotely.)
-- Tests run in CI as part of this workflow.
+Pushing the tag triggers **`build-release.yml`**, which builds the Electron
+app on GitHub Actions, runs the tests, and uploads the **unsigned** installer
+as a *workflow artifact* (downloadable from the Actions run for 30 days). It
+deliberately does **not** create a GitHub release — CI cannot sign (the
+hardware token is not available remotely), so the release is created and
+populated manually in the next steps.
 
 ### 6. Create the GitHub release
 
@@ -70,10 +71,12 @@ Pushing the tag triggers two CI workflows:
 gh release create v<new_version> --title "v<new_version>" --generate-notes
 ```
 
-Creating the release triggers:
+This is the single point at which the GitHub release is created. Because it
+uses your `GH_TOKEN` PAT (not CI's `GITHUB_TOKEN`), it fires the
+`release: created` event, which triggers:
 
 - **`npm-publish.yml`** — runs tests on Ubuntu, then publishes the npm
-  package (`jseeqret` on npmjs.org) using the `npm_token` secret.
+  package (`jseeqret` on npmjs.org) via npm Trusted Publishing (OIDC).
 
 ### 7. Build and sign the installer locally
 
@@ -115,8 +118,8 @@ uploaded earlier.
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `build-release.yml` | Push tag `v*` | Builds Electron app, runs tests, uploads unsigned artifacts |
-| `npm-publish.yml` | GitHub release created | Runs tests, publishes to npmjs.org |
+| `build-release.yml` | Push tag `v*` | Builds Electron app, runs tests, uploads the unsigned installer as a workflow artifact (no GitHub release) |
+| `npm-publish.yml` | GitHub release created (via PAT) | Runs tests, publishes to npmjs.org via Trusted Publishing (OIDC) |
 
 ## Notes
 
