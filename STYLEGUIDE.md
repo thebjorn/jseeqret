@@ -103,7 +103,6 @@ Dicts of dicts should be formatted like this:
 ## Semicolon Usage
 - Omit semicolons at the end of statements, except where necessary to avoid ambiguity.
 - Do not add semicolons to existing code that omits them.
-- Do use semicolons for return statements.
 
     // Correct
     const value = 42
