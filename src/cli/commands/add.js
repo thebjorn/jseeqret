@@ -11,6 +11,7 @@ const add_key = new Command('key')
     .option('--app <app>', 'Application name', '*')
     .option('--env <env>', 'Environment name', '*')
     .option('--type <type>', 'Value type (str, int)', 'str')
+    .option('--force', 'Overwrite the value if the key already exists', false)
     .action(async (name, value, opts) => {
         require_vault()
         const storage = new SqliteStorage()
@@ -18,13 +19,6 @@ const add_key = new Command('key')
         const existing = await storage.fetch_secrets({
             app: opts.app, env: opts.env, key: name,
         })
-        if (existing.length > 0) {
-            console.error(
-                `Error: Secret ${opts.app}:${opts.env}:${name}`
-                + ' already exists.'
-            )
-            process.exit(1)
-        }
 
         const secret = new Secret({
             app: opts.app,
@@ -33,8 +27,21 @@ const add_key = new Command('key')
             plaintext_value: value,
             type: opts.type,
         })
-        await storage.add_secret(secret)
-        console.log(`Added secret: ${opts.app}:${opts.env}:${name}`)
+
+        if (existing.length > 0) {
+            if (!opts.force) {
+                console.error(
+                    `Error: Secret ${opts.app}:${opts.env}:${name}`
+                    + ' already exists.'
+                )
+                process.exit(1)
+            }
+            await storage.upsert_secret(secret)
+            console.log(`Updated secret: ${opts.app}:${opts.env}:${name}`)
+        } else {
+            await storage.add_secret(secret)
+            console.log(`Added secret: ${opts.app}:${opts.env}:${name}`)
+        }
     })
 
 /**

@@ -1,7 +1,6 @@
 import { createRequire } from 'module'
 import fs from 'fs'
 import path from 'path'
-import os from 'os'
 import { ipcMain, dialog, BrowserWindow } from 'electron'
 import { SqliteStorage } from '../core/sqlite-storage.js'
 
@@ -10,7 +9,10 @@ const { version: pkg_version } = require('../../package.json')
 import { FilterSpec } from '../core/filter.js'
 import { Secret } from '../core/models/secret.js'
 import { User } from '../core/models/user.js'
-import { is_initialized, get_seeqret_dir, current_user } from '../core/vault.js'
+import {
+    is_initialized, get_seeqret_dir, current_user, qualified_user,
+} from '../core/vault.js'
+import { fetch_self } from '../core/user-resolve.js'
 import {
     load_private_key_str, load_public_key_str,
     generate_symmetric_key, generate_and_save_key_pair,
@@ -188,12 +190,11 @@ export function register_ipc_handlers() {
 
     ipcMain.handle('vault:introduction', async () => {
         const storage = get_storage()
-        const username = current_user()
-        const user = await storage.fetch_user(username)
+        const user = await fetch_self(storage)
 
         if (!user) {
             throw new Error(
-                `You (${username}) are not registered in this vault. `
+                `You (${qualified_user()}) are not registered in this vault. `
                 + 'Ask the vault owner to add you.'
             )
         }
@@ -287,8 +288,12 @@ export function register_ipc_handlers() {
         const key_pair = generate_and_save_key_pair(vault_dir)
         const pubkey = encode_key(key_pair.publicKey)
 
-        const username = current_user()
-        const email = `${username}@${os.hostname()}`
+        // Owner identity is the hostname-qualified username (user@host),
+        // matching CLI `init` and the Python seeqret tool so GUI- and
+        // CLI-created vaults stay interchangeable. Email is a placeholder
+        // until the user sets a real one (e.g. during onboarding).
+        const username = qualified_user()
+        const email = username
         await run_migrations(vault_dir, username, email, pubkey)
 
         // Register with basename of chosen dir as vault name

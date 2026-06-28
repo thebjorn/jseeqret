@@ -6,6 +6,7 @@ import { get_serializer } from '../../core/serializers/index.js'
 import { load_private_key_str } from '../../core/crypto/utils.js'
 import { decode_key } from '../../core/crypto/nacl.js'
 import { get_seeqret_dir } from '../../core/vault.js'
+import { resolve_recipients } from '../../core/user-resolve.js'
 import { require_vault } from '../utils.js'
 
 /**
@@ -19,7 +20,10 @@ import { require_vault } from '../utils.js'
  */
 export const export_command = new Command('export')
     .description('Export secrets encrypted for a user')
-    .requiredOption('--to <user...>', 'Recipient username(s)')
+    .requiredOption(
+        '--to <user...>',
+        'Recipient(s): a username, "self" (the owner), or "all"'
+    )
     .option('-f, --filter <filter...>', 'Filter spec(s) (app:env:key)', [])
     .option('-s, --serializer <name>', 'Serializer to use', 'json-crypt')
     .option('-o, --out <file>', 'Output file path')
@@ -48,12 +52,30 @@ export const export_command = new Command('export')
             process.exit(1)
         }
 
-        for (const username of opts.to) {
-            const receiver = await storage.fetch_user(username)
+        // Expand --to into canonical usernames: `self` -> the owner,
+        // `all` -> every other user, bare names -> a unique match.
+        let recipients
+        try {
+            recipients = await resolve_recipients(storage, opts.to)
+        } catch (e) {
+            console.error(`Error: ${e.message}`)
+            process.exit(1)
+        }
+
+        if (recipients.length === 0) {
+            console.error('No users to export to.')
+            process.exit(1)
+        }
+
+        for (const name of recipients) {
+            const receiver = name === 'self'
+                ? admin
+                : await storage.fetch_user(name)
             if (!receiver) {
-                console.error(`Error: User '${username}' not found in vault.`)
+                console.error(`Error: User '${name}' not found in vault.`)
                 process.exit(1)
             }
+            const display = receiver.username
 
             const serializer = new SerializerClass({
                 sender: admin,
@@ -69,7 +91,7 @@ export const export_command = new Command('export')
 
             if (opts.out) {
                 fs.writeFileSync(opts.out, output, 'utf-8')
-                console.log(`Exported ${all_secrets.length} secret(s) to ${opts.out} for ${username}`)
+                console.log(`Exported ${all_secrets.length} secret(s) to ${opts.out} for ${display}`)
             } else {
                 console.log(output)
             }

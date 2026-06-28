@@ -1,6 +1,7 @@
 import { Command } from 'commander'
 import { SqliteStorage } from '../../core/sqlite-storage.js'
-import { current_user } from '../../core/vault.js'
+import { qualified_user } from '../../core/vault.js'
+import { fetch_self } from '../../core/user-resolve.js'
 import { require_vault } from '../utils.js'
 import { compute_fingerprint } from '../../core/slack/identity.js'
 
@@ -17,11 +18,10 @@ export const introduction_command = new Command('introduction')
     .action(async () => {
         require_vault()
         const storage = new SqliteStorage()
-        const username = current_user()
-        const user = await storage.fetch_user(username)
+        const user = await fetch_self(storage)
 
         if (!user) {
-            console.error(`Error: You (${username}) are not registered in this vault.`)
+            console.error(`Error: You (${qualified_user()}) are not registered in this vault.`)
             console.error('Ask the vault owner to add you.')
             process.exit(1)
         }

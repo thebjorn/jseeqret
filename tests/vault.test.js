@@ -2,7 +2,9 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
-import { get_seeqret_dir, is_initialized, current_user } from '../src/core/vault.js'
+import {
+    get_seeqret_dir, is_initialized, current_user, hostname, qualified_user,
+} from '../src/core/vault.js'
 import { registry_default } from '../src/core/vault-registry.js'
 
 const has_registry_vault = !!registry_default()
@@ -89,5 +91,21 @@ describe('current_user', () => {
 
     it('matches os.userInfo().username', () => {
         expect(current_user()).toBe(os.userInfo().username)
+    })
+})
+
+describe('hostname', () => {
+    it('is a non-empty, lowercased, domain-stripped string', () => {
+        const h = hostname()
+        expect(typeof h).toBe('string')
+        expect(h.length).toBeGreaterThan(0)
+        expect(h).toBe(h.toLowerCase())
+        expect(h).not.toContain('.')
+    })
+})
+
+describe('qualified_user', () => {
+    it('is current_user@hostname', () => {
+        expect(qualified_user()).toBe(`${current_user()}@${hostname()}`)
     })
 })

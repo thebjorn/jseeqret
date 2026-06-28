@@ -10,7 +10,7 @@ import readline from 'readline'
 import { Command } from 'commander'
 
 import { SqliteStorage } from '../../core/sqlite-storage.js'
-import { require_vault } from '../utils.js'
+import { require_vault, resolve_user_or_exit } from '../utils.js'
 import { SlackClient } from '../../core/slack/client.js'
 import { run_oauth_flow } from '../../core/slack/oauth.js'
 import {
@@ -171,15 +171,13 @@ const slack_link = new Command('link')
         require_vault()
         const storage = new SqliteStorage()
 
-        const local = await storage.fetch_user(username)
-        if (!local) {
-            console.error(`Error: local user '${username}' not found.`)
-            process.exit(1)
-        }
+        const local = await resolve_user_or_exit(storage, username)
+        username = local.username
 
         const fp = compute_fingerprint(local)
 
-        const handle = opts.handle || username
+        // Default the handle to the bare username (strip any @host).
+        const handle = opts.handle || username.split('@')[0]
         console.log(`\nLocal user: ${username} <${local.email}>`)
         console.log(`Slack handle: @${handle}`)
         console.log(`Public key fingerprint: ${fp}`)

@@ -84,3 +84,21 @@ export function is_initialized() {
 export function current_user() {
     return os.userInfo().username
 }
+
+/**
+ * Short hostname, lowercased for stable matching across machines.
+ * @returns {string}
+ */
+export function hostname() {
+    return os.hostname().split('.')[0].toLowerCase()
+}
+
+/**
+ * Hostname-qualified identity for the current OS user (`user@host`), so
+ * the same username on two machines stays distinct. Mirrors the Python
+ * seeqret `qualified_user()` helper.
+ * @returns {string}
+ */
+export function qualified_user() {
+    return `${current_user()}@${hostname()}`
+}

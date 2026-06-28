@@ -3,8 +3,9 @@
  */
 
 import Table from 'cli-table3'
-import { is_initialized, current_user, get_seeqret_dir } from '../core/vault.js'
+import { is_initialized, get_seeqret_dir } from '../core/vault.js'
 import { SqliteStorage } from '../core/sqlite-storage.js'
+import { resolve_user, fetch_self } from '../core/user-resolve.js'
 
 /**
  * Print data as a formatted table.
@@ -88,15 +89,33 @@ export function require_vault() {
 }
 
 /**
- * Validate the current user is a registered vault user.
+ * Validate the current user is a registered vault user. Accepts either
+ * the hostname-qualified identity (`user@host`) or a legacy bare-name
+ * owner (see fetch_self).
  */
 export async function validate_current_user() {
-    const user = current_user()
     const storage = new SqliteStorage()
-    const users = await storage.fetch_users({ username: user })
+    const self = await fetch_self(storage)
 
-    if (users.length === 0) {
+    if (!self) {
         console.error('Error: You are not a valid user of this vault.')
+        process.exit(1)
+    }
+}
+
+/**
+ * Resolve a user-name argument (bare or `user@host`) to a vault user,
+ * printing a friendly error and exiting on an unknown or ambiguous name.
+ * Keeps call sites as terse as the previous `fetch_user` + null check.
+ * @param {SqliteStorage} storage
+ * @param {string} name
+ * @returns {Promise<import('../core/models/user.js').User>}
+ */
+export async function resolve_user_or_exit(storage, name) {
+    try {
+        return await resolve_user(storage, name)
+    } catch (e) {
+        console.error(`Error: ${e.message}`)
         process.exit(1)
     }
 }

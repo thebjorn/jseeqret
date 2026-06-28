@@ -25,7 +25,7 @@ import { get_serializer } from '../../core/serializers/index.js'
 import { load_private_key_str } from '../../core/crypto/utils.js'
 import { decode_key } from '../../core/crypto/nacl.js'
 import { get_seeqret_dir } from '../../core/vault.js'
-import { require_vault } from '../utils.js'
+import { require_vault, resolve_user_or_exit } from '../utils.js'
 
 import { SlackClient } from '../../core/slack/client.js'
 import { send_blob } from '../../core/slack/transport.js'
@@ -117,11 +117,8 @@ export const send_command = new Command('send')
         require_vault()
         const storage = new SqliteStorage()
 
-        const recipient = await storage.fetch_user(opts.to)
-        if (!recipient) {
-            console.error(`Error: user '${opts.to}' not found in vault.`)
-            process.exit(1)
-        }
+        const recipient = await resolve_user_or_exit(storage, opts.to)
+        opts.to = recipient.username
 
         let ciphertext, count
         try {

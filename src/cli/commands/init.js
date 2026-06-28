@@ -5,6 +5,7 @@ import { run_migrations } from '../../core/migrations.js'
 import { generate_symmetric_key, generate_and_save_key_pair } from '../../core/crypto/utils.js'
 import { encode_key } from '../../core/crypto/nacl.js'
 import { harden_vault_windows } from '../../core/fileutils.js'
+import { qualified_user } from '../../core/vault.js'
 
 /**
  * Create a new vault in `DIR/seeqret/`. Generates `seeqrets.db`, a
@@ -18,7 +19,7 @@ import { harden_vault_windows } from '../../core/fileutils.js'
 export const init_command = new Command('init')
     .description('Initialize a new vault in DIR')
     .argument('[dir]', 'Directory to initialize vault in', '.')
-    .requiredOption('--user <username>', 'Vault owner username')
+    .option('--user <username>', 'Vault owner username', qualified_user())
     .requiredOption('--email <email>', 'Vault owner email')
     .option('--pubkey <pubkey>', 'Existing public key (base64)')
     .option('--key <key>', 'Existing symmetric key')

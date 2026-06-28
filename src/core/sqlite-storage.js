@@ -208,6 +208,12 @@ export class SqliteStorage {
         }, true)
     }
 
+    async remove_user(username) {
+        return this._with_db((db) => {
+            db.run('DELETE FROM users WHERE username = ?', [username])
+        }, true)
+    }
+
     async fetch_user(username) {
         return this._with_db((db) => {
             const rows = this._query_rows(
@@ -368,6 +374,24 @@ export class SqliteStorage {
             db.run(
                 'UPDATE secrets SET value = ? WHERE app = ? AND env = ? AND key = ?',
                 [secret.encrypted_value, secret.app, secret.env, secret.key]
+            )
+        }, true)
+    }
+
+    /**
+     * Insert a secret, or overwrite the value/type if one already exists
+     * for the same (app, env, key). Lets `load` / `receive` re-import an
+     * updated export instead of failing on the unique constraint.
+     */
+    async upsert_secret(secret) {
+        return this._with_db((db) => {
+            db.run(
+                `INSERT INTO secrets (app, env, key, value, type)
+                 VALUES (?, ?, ?, ?, ?)
+                 ON CONFLICT(app, env, key) DO UPDATE SET
+                     value = excluded.value,
+                     type = excluded.type`,
+                [secret.app, secret.env, secret.key, secret.encrypted_value, secret.type]
             )
         }, true)
     }

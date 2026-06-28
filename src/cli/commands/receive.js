@@ -81,7 +81,7 @@ async function _run_once(storage, snap) {
         const secrets = serializer.load(text)
 
         for (const secret of secrets) {
-            await storage.add_secret(secret)
+            await storage.upsert_secret(secret)
             imported++
         }
 

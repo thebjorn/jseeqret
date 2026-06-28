@@ -145,3 +145,47 @@ describe('SqliteStorage - Secrets', () => {
         expect(secrets).toHaveLength(0)
     })
 })
+
+describe('SqliteStorage - upsert_secret', () => {
+    it('inserts when the secret does not exist', async () => {
+        await storage.upsert_secret(new Secret({
+            app: 'a', env: 'e', key: 'NEW',
+            plaintext_value: 'v1', vault_dir: tmp_dir,
+        }))
+        const [s] = await storage.fetch_secrets({ app: 'a', env: 'e', key: 'NEW' })
+        expect(s.get_value()).toBe('v1')
+    })
+
+    it('overwrites value and type on conflict', async () => {
+        await storage.add_secret(new Secret({
+            app: 'a', env: 'e', key: 'K',
+            plaintext_value: 'old', type: 'str', vault_dir: tmp_dir,
+        }))
+        await storage.upsert_secret(new Secret({
+            app: 'a', env: 'e', key: 'K',
+            plaintext_value: '5432', type: 'int', vault_dir: tmp_dir,
+        }))
+        const all = await storage.fetch_secrets({ app: 'a', env: 'e', key: 'K' })
+        expect(all).toHaveLength(1)
+        expect(all[0].get_value()).toBe(5432)
+        expect(typeof all[0].get_value()).toBe('number')
+    })
+})
+
+describe('SqliteStorage - remove_user', () => {
+    it('removes a user by username', async () => {
+        await storage.add_user(new User('bob@h', 'b@test.com', 'pk'))
+        expect(await storage.fetch_user('bob@h')).not.toBeNull()
+        await storage.remove_user('bob@h')
+        expect(await storage.fetch_user('bob@h')).toBeNull()
+    })
+
+    it('leaves other users intact', async () => {
+        await storage.add_user(new User('a@h', 'a@test.com', 'pk1'))
+        await storage.add_user(new User('b@h', 'b@test.com', 'pk2'))
+        await storage.remove_user('a@h')
+        const names = (await storage.fetch_users()).map(u => u.username)
+        expect(names).toContain('b@h')
+        expect(names).not.toContain('a@h')
+    })
+})

@@ -5,7 +5,7 @@ import { get_serializer } from '../../core/serializers/index.js'
 import { load_private_key_str } from '../../core/crypto/utils.js'
 import { decode_key } from '../../core/crypto/nacl.js'
 import { get_seeqret_dir } from '../../core/vault.js'
-import { require_vault } from '../utils.js'
+import { require_vault, resolve_user_or_exit } from '../utils.js'
 
 /**
  * Import secrets that were encrypted for this user with
@@ -42,19 +42,15 @@ export const load_command = new Command('load')
             text = opts.value
         }
 
-        // Determine sender
+        // Determine sender (accepts a bare or user@host name)
         let sender = null
         if (opts.fromUser) {
-            sender = await storage.fetch_user(opts.fromUser)
-            if (!sender) {
-                console.error(`Error: User '${opts.fromUser}' not found in vault.`)
-                process.exit(1)
-            }
+            sender = await resolve_user_or_exit(storage, opts.fromUser)
         } else if (opts.serializer === 'json-crypt') {
             // Try to determine sender from JSON payload
             const data = JSON.parse(text)
             if (data.from) {
-                sender = await storage.fetch_user(data.from)
+                sender = await resolve_user_or_exit(storage, data.from)
             }
         }
 
@@ -66,7 +62,7 @@ export const load_command = new Command('load')
         const secrets = serializer.load(text)
         let count = 0
         for (const secret of secrets) {
-            await storage.add_secret(secret)
+            await storage.upsert_secret(secret)
             count++
         }
 
