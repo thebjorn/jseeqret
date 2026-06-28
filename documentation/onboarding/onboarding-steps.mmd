@@ -1,0 +1,26 @@
+sequenceDiagram
+    autonumber
+    actor TL
+    participant tlVault@{ "type": "database" }
+    participant Slack@{ "type": "queue" }
+    actor User
+    TL->>tlVault: invite new user<br>(email, project filter)
+    tlVault-->>Slack: post invite + download<br>link to #seeqrets
+    Slack-->>User: deliver invite + link
+    User->>User: download & install jseeqret
+    create participant uVault@{ "type": "database" }
+    User->>uVault: jseeqret init<br>(vault auto-created)
+    User->>uVault: jseeqret slack login<br>(OAuth) + pick #seeqrets
+    uVault-->>Slack: post introduction<br>(pubkey + fingerprint)
+    tlVault-->>Slack: poll for introduction
+    Slack-->>tlVault: introduction received
+    Note over TL,User: Out-of-band voice call:<br>TL and User verify each<br>other's fingerprints
+    rect rgb(103, 122, 80)
+        TL->>tlVault: approve<br>(type back fingerprint)
+        tlVault->>tlVault: add user<br>(assign project)
+        tlVault-->>Slack: send teammate users
+        Slack-->>uVault: import users
+        tlVault-->>Slack: send scoped secrets
+        Slack-->>uVault: import secrets
+    end
+    tlVault->>TL: onboarding complete
