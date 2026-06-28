@@ -1,0 +1,8 @@
+# Generated typedoc documentation site — not hand-written source.
+# Scanning it only produces noise (typedoc's own bundled assets and the
+# legitimate http://127.0.0.1 loopback OAuth redirect URL in the docs).
+docs/
+
+# Build output.
+dist/
+out/

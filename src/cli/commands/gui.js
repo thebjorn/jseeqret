@@ -22,6 +22,12 @@ export const gui_command = new Command('gui')
         const cmd = opts.dev ? 'npm' : 'electron'
         const args = opts.dev ? ['run', 'dev'] : ['.']
 
+        // `cmd` and `args` are static literals — no user input reaches the
+        // spawn, so there is no injection surface. `shell` is enabled only
+        // on Windows, where `npm`/`electron` are `.cmd` shims that Node
+        // refuses to spawn without a shell (EINVAL since the CVE-2024-27980
+        // hardening). Hence the deliberate, scoped `shell` here.
+        // nosemgrep: javascript.lang.security.audit.spawn-shell-true.spawn-shell-true
         const child = spawn(cmd, args, {
             cwd: project_root,
             stdio: 'inherit',

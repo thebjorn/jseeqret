@@ -7,6 +7,10 @@ on:
   release:
     types: [created]
 
+# Default least-privilege for all jobs; publish-npm widens it below.
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
