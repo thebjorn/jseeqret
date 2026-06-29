@@ -1,7 +1,7 @@
 import { createRequire } from 'module'
 import fs from 'fs'
 import path from 'path'
-import { ipcMain, dialog, BrowserWindow } from 'electron'
+import { ipcMain, dialog, BrowserWindow, shell } from 'electron'
 import { SqliteStorage } from '../core/sqlite-storage.js'
 
 const require = createRequire(import.meta.url)
@@ -23,8 +23,23 @@ import {
     registry_list, registry_add, registry_remove,
     registry_use, registry_default, registry_resolve,
 } from '../core/vault-registry.js'
-import { run_migrations } from '../core/migrations.js'
+import { run_migrations, upgrade_db } from '../core/migrations.js'
 import { harden_vault_windows } from '../core/fileutils.js'
+import { SlackClient } from '../core/slack/client.js'
+import {
+    SLACK_KEYS, slack_config_get, slack_config_set,
+    slack_config_snapshot, slack_config_clear_all,
+} from '../core/slack/config.js'
+import {
+    slack_oauth_login, slack_set_channel,
+    slack_session_status, assert_slack_ready,
+} from '../core/slack/session.js'
+import { bind_slack_handle, compute_fingerprint } from '../core/slack/identity.js'
+import {
+    onboard_invite, onboard_poll, onboard_approve, onboard_join,
+    onboard_receive_invite, onboard_provision_poll,
+    expire_stale_onboarding, set_tl_trust, get_tl_trust,
+} from '../core/onboarding.js'
 
 /**
  * Resolve vault dir from registry default first, falling back to
@@ -41,6 +56,45 @@ function get_active_vault_dir() {
 
 function get_storage() {
     return new SqliteStorage('seeqrets.db', get_active_vault_dir())
+}
+
+/**
+ * Bring a vault's schema up to date the first time the main process opens
+ * it this session. Vaults created before a migration landed (e.g. the v004
+ * onboarding table) are otherwise never upgraded by the GUI -- only CLI
+ * `slack login` ran `upgrade_db`. We cache the in-flight promise per vault
+ * so concurrent handlers (onboard:list + onboard:poll fire together on
+ * load) don't race two read-modify-write upgrades against the same file.
+ * @param {string} vault_dir
+ * @returns {Promise<void>}
+ */
+const _migration_cache = new Map()
+function ensure_migrated(vault_dir) {
+    if (!vault_dir) return Promise.resolve()
+    if (!fs.existsSync(path.join(vault_dir, 'seeqrets.db'))) return Promise.resolve()
+    if (!_migration_cache.has(vault_dir)) {
+        _migration_cache.set(
+            vault_dir,
+            upgrade_db(vault_dir).catch((e) => {
+                _migration_cache.delete(vault_dir)   // allow a later retry
+                throw e
+            })
+        )
+    }
+    return _migration_cache.get(vault_dir)
+}
+
+/**
+ * Migrate the currently-active vault. Called once at app startup (before
+ * the renderer can invoke a handler) so existing vaults gain new tables.
+ * Best-effort: a failure is logged, not fatal.
+ */
+export async function ensure_active_vault_migrated() {
+    try {
+        await ensure_migrated(get_active_vault_dir())
+    } catch (e) {
+        console.error('vault migration on startup failed:', e.message)
+    }
 }
 
 export function register_ipc_handlers() {
@@ -203,6 +257,7 @@ export function register_ipc_handlers() {
             username: user.username,
             email: user.email,
             pubkey: user.pubkey,
+            fingerprint: compute_fingerprint(user),
         }
     })
 
@@ -256,12 +311,15 @@ export function register_ipc_handlers() {
         return { ok: true }
     })
 
-    ipcMain.handle('vaults:switch', (_event, { name, vault_path }) => {
+    ipcMain.handle('vaults:switch', async (_event, { name, vault_path }) => {
         // If switching to an env-var vault not yet in registry, register it
         if (vault_path) {
             registry_add(name, vault_path)
         }
         registry_use(name)
+        // Bring the newly-active vault's schema up to date (it may predate
+        // a migration this build adds, e.g. the onboarding table).
+        await ensure_migrated(get_active_vault_dir())
         return { ok: true }
     })
 
@@ -310,5 +368,146 @@ export function register_ipc_handlers() {
 
     ipcMain.handle('vaults:default', () => {
         return registry_default()
+    })
+
+    // -- Slack session (Phase 4) ---------------------------------------
+
+    ipcMain.handle('slack:status', async () => {
+        return slack_session_status(get_storage())
+    })
+
+    ipcMain.handle('slack:login', async () => {
+        const storage = get_storage()
+        // The loopback OAuth flow runs in the main process; the channel
+        // picker is surfaced to the renderer as return data.
+        return slack_oauth_login(storage, {
+            open_browser: (url) => shell.openExternal(url),
+        })
+    })
+
+    ipcMain.handle('slack:set-channel', async (_event, { channel_id, channel_name }) => {
+        await slack_set_channel(get_storage(), channel_id, channel_name)
+        return { ok: true }
+    })
+
+    ipcMain.handle('slack:doctor', async () => {
+        const status = await slack_session_status(get_storage())
+        return { ready: status.ready, problems: status.problems }
+    })
+
+    ipcMain.handle('slack:logout', async () => {
+        await slack_config_clear_all(get_storage())
+        return { ok: true }
+    })
+
+    ipcMain.handle('slack:link', async (_event, { username, handle, fingerprint }) => {
+        const storage = get_storage()
+        const user = await storage.fetch_user(username)
+        if (!user) throw new Error(`Unknown user: ${username}`)
+        // Re-validate the out-of-band fingerprint type-back in the main
+        // process; the renderer input is UX, not authority.
+        if (compute_fingerprint(user) !== fingerprint) {
+            throw new Error('Fingerprint mismatch; refusing to bind.')
+        }
+        await bind_slack_handle(storage, username, handle || username.split('@')[0])
+        return { ok: true }
+    })
+
+    // -- Onboarding: Team Lead side (Phases 5, 7) ----------------------
+
+    function get_self_or_throw(storage) {
+        return fetch_self(storage).then(self => {
+            if (!self) {
+                throw new Error(
+                    `You (${qualified_user()}) are not registered in this vault.`
+                )
+            }
+            return self
+        })
+    }
+
+    async function slack_ctx() {
+        await ensure_migrated(get_active_vault_dir())
+        const storage = get_storage()
+        const snap = await slack_config_snapshot(storage)
+        assert_slack_ready(snap)
+        const client = new SlackClient(snap.user_token)
+        return { storage, snap, client }
+    }
+
+    ipcMain.handle('onboard:invite', async (_event, { email, project, name }) => {
+        const { storage, snap, client } = await slack_ctx()
+        const self = await get_self_or_throw(storage)
+        const r = await onboard_invite(storage, client, {
+            email, project, name: name || null,
+            channel_id: snap.channel_id, self,
+        })
+        return { ok: true, slack_user_id: r.slack_user_id, fingerprint: compute_fingerprint(self) }
+    })
+
+    ipcMain.handle('onboard:list', async () => {
+        await ensure_migrated(get_active_vault_dir())
+        return get_storage().onboarding_list()
+    })
+
+    ipcMain.handle('onboard:poll', async () => {
+        const { storage, snap, client } = await slack_ctx()
+        await expire_stale_onboarding(storage)
+        const oldest = await slack_config_get(storage, SLACK_KEYS.onboard_last_seen_ts) || '0'
+        const r = await onboard_poll(storage, client, {
+            channel_id: snap.channel_id, self_user_id: snap.user_id, oldest_ts: oldest,
+        })
+        if (r.highest_ts !== oldest) {
+            await slack_config_set(storage, SLACK_KEYS.onboard_last_seen_ts, r.highest_ts)
+        }
+        const list = await storage.onboarding_list()
+        return { events: r.events, list }
+    })
+
+    ipcMain.handle('onboard:approve', async (_event, { email, verified, fingerprint }) => {
+        const { storage, snap, client } = await slack_ctx()
+        const self = await get_self_or_throw(storage)
+        const sender_private_key = decode_key(load_private_key_str(get_active_vault_dir()))
+        const summary = await onboard_approve(storage, client, {
+            email, verified, fingerprint,
+            channel_id: snap.channel_id, self, sender_private_key,
+        })
+        return { ok: true, ...summary }
+    })
+
+    // -- Onboarding: new-user side (Phase 6) ---------------------------
+
+    ipcMain.handle('onboard:receive-invite', async () => {
+        const { storage, snap, client } = await slack_ctx()
+        return onboard_receive_invite(storage, client, {
+            channel_id: snap.channel_id, self_user_id: snap.user_id,
+        })
+    })
+
+    ipcMain.handle('onboard:join', async (_event, opts) => {
+        const { storage, snap, client } = await slack_ctx()
+        const self = await get_self_or_throw(storage)
+        const { tl_slack_user_id, tl_pubkey, tl_fingerprint, project } = opts
+        await set_tl_trust(storage, {
+            user_id: tl_slack_user_id, pubkey: tl_pubkey,
+            fingerprint: tl_fingerprint, project,
+        })
+        await onboard_join(storage, client, {
+            channel_id: snap.channel_id, self, tl_slack_user_id,
+        })
+        return { ok: true, fingerprint: compute_fingerprint(self) }
+    })
+
+    ipcMain.handle('onboard:provision-poll', async () => {
+        const { storage, snap, client } = await slack_ctx()
+        const trust = await get_tl_trust(storage)
+        if (!trust.tl_pubkey) {
+            throw new Error('No team-lead trust on file yet. Run join first.')
+        }
+        const receiver_private_key = decode_key(load_private_key_str(get_active_vault_dir()))
+        return onboard_provision_poll(storage, client, {
+            channel_id: snap.channel_id, self_user_id: snap.user_id,
+            receiver_private_key, trusted_pubkey: trust.tl_pubkey,
+        })
     })
 }

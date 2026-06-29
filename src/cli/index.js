@@ -36,6 +36,7 @@ import { vault_commands } from './commands/vault.js'
 import { slack_commands } from './commands/slack.js'
 import { send_command } from './commands/send.js'
 import { receive_command } from './commands/receive.js'
+import { onboard_commands } from './commands/onboard.js'
 
 const program = new Command()
 
@@ -81,5 +82,6 @@ program.addCommand(vault_commands)
 program.addCommand(slack_commands)
 program.addCommand(send_command)
 program.addCommand(receive_command)
+program.addCommand(onboard_commands)
 
 program.parse()

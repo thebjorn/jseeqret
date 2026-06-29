@@ -158,14 +158,24 @@ export class SlackClient {
      * @returns {Promise<Array<object>>}
      */
     async conversations_history({ channel_id, oldest_ts = '0', limit = 100 }) {
-        const r = await this.web.conversations.history({
-            channel: channel_id,
-            oldest: oldest_ts,
-            inclusive: false,
-            limit,
-        })
+        // Page through the full [oldest_ts, now] range. A single 100-message
+        // page would silently drop older envelopes on a busy channel.
+        const all = []
+        let cursor
+        do {
+            const r = await this.web.conversations.history({
+                channel: channel_id,
+                oldest: oldest_ts,
+                inclusive: false,
+                limit,
+                cursor,
+            })
+            all.push(...(r.messages || []))
+            cursor = r.response_metadata?.next_cursor || null
+        } while (cursor)
+
         // Slack returns newest-first; reverse so callers can process in order.
-        return (r.messages || []).slice().reverse()
+        return all.reverse()
     }
 
     /**

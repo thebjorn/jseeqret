@@ -414,4 +414,105 @@ export class SqliteStorage {
     async remove_secrets(filters) {
         return this.execute_write_sql('DELETE FROM secrets', filters)
     }
+
+    // ---- Onboarding state (migration v004) ----
+
+    /**
+     * Insert (or replace) an onboarding row, keyed by email. Stamps
+     * created_at/updated_at. Defaults state to 'invited'.
+     * @param {object} fields
+     * @param {string} fields.email
+     */
+    async onboarding_create({
+        email,
+        username = null,
+        slack_handle = null,
+        slack_user_id = null,
+        project_filter = null,
+        fingerprint = null,
+        pubkey = null,
+        state = 'invited',
+    }) {
+        const now = Math.floor(Date.now() / 1000)
+        return this._with_db((db) => {
+            db.run(
+                `INSERT OR REPLACE INTO onboarding
+                    (email, username, slack_handle, slack_user_id,
+                     project_filter, fingerprint, pubkey, state,
+                     created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    email, username, slack_handle, slack_user_id,
+                    project_filter, fingerprint, pubkey, state,
+                    now, now,
+                ]
+            )
+        }, true)
+    }
+
+    async onboarding_get(email) {
+        return this._with_db((db) => {
+            const rows = this._query_rows(
+                db, 'SELECT * FROM onboarding WHERE email = ?', [email]
+            )
+            return rows.length > 0 ? rows[0] : null
+        })
+    }
+
+    async onboarding_list(filters = {}) {
+        return this.execute_sql(
+            ['SELECT * FROM onboarding', ' ORDER BY created_at'],
+            filters
+        )
+    }
+
+    async onboarding_set_state(email, state) {
+        const now = Math.floor(Date.now() / 1000)
+        return this._with_db((db) => {
+            db.run(
+                'UPDATE onboarding SET state = ?, updated_at = ? WHERE email = ?',
+                [state, now, email]
+            )
+        }, true)
+    }
+
+    /**
+     * Update a subset of mutable onboarding columns. Always bumps
+     * updated_at. Unknown keys are ignored.
+     * @param {string} email
+     * @param {object} fields
+     */
+    async onboarding_update(email, fields) {
+        const allowed = [
+            'username', 'slack_handle', 'slack_user_id',
+            'project_filter', 'fingerprint', 'pubkey', 'state',
+        ]
+        const sets = []
+        const params = []
+
+        for (const col of allowed) {
+            if (col in fields) {
+                sets.push(`${col} = ?`)
+                params.push(fields[col])
+            }
+        }
+        if (sets.length === 0) return
+
+        sets.push('updated_at = ?')
+        params.push(Math.floor(Date.now() / 1000))
+        params.push(email)
+
+        return this._with_db((db) => {
+            db.run(
+                `UPDATE onboarding SET ${sets.join(', ')} WHERE email = ?`,
+                params
+            )
+        }, true)
+    }
+
+    async onboarding_delete(email) {
+        return this._with_db((db) => {
+            db.run('DELETE FROM onboarding WHERE email = ?', [email])
+        }, true)
+    }
 }

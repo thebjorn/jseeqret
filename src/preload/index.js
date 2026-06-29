@@ -28,6 +28,25 @@ const api = {
         ipcRenderer.on('update:status', handler)
         return () => ipcRenderer.removeListener('update:status', handler)
     },
+
+    // Slack session (Phase 4)
+    slackStatus: () => ipcRenderer.invoke('slack:status'),
+    slackLogin: () => ipcRenderer.invoke('slack:login'),
+    slackSetChannel: (data) => ipcRenderer.invoke('slack:set-channel', data),
+    slackDoctor: () => ipcRenderer.invoke('slack:doctor'),
+    slackLogout: () => ipcRenderer.invoke('slack:logout'),
+    slackLink: (data) => ipcRenderer.invoke('slack:link', data),
+
+    // Onboarding — Team Lead side
+    onboardInvite: (data) => ipcRenderer.invoke('onboard:invite', data),
+    onboardList: () => ipcRenderer.invoke('onboard:list'),
+    onboardPoll: () => ipcRenderer.invoke('onboard:poll'),
+    onboardApprove: (data) => ipcRenderer.invoke('onboard:approve', data),
+
+    // Onboarding — new-user side
+    onboardReceiveInvite: () => ipcRenderer.invoke('onboard:receive-invite'),
+    onboardJoin: (data) => ipcRenderer.invoke('onboard:join', data),
+    onboardProvisionPoll: () => ipcRenderer.invoke('onboard:provision-poll'),
 }
 
 if (process.contextIsolated) {

@@ -12,7 +12,6 @@ import { Command } from 'commander'
 import { SqliteStorage } from '../../core/sqlite-storage.js'
 import { require_vault, resolve_user_or_exit } from '../utils.js'
 import { SlackClient } from '../../core/slack/client.js'
-import { run_oauth_flow } from '../../core/slack/oauth.js'
 import {
     SLACK_KEYS,
     slack_config_get,
@@ -20,6 +19,7 @@ import {
     slack_config_clear_all,
     slack_config_snapshot,
 } from '../../core/slack/config.js'
+import { slack_oauth_login, slack_set_channel } from '../../core/slack/session.js'
 import {
     bind_slack_handle,
     compute_fingerprint,
@@ -66,27 +66,13 @@ const slack_login = new Command('login')
         console.log('Starting Slack OAuth flow...')
         const { open: open_url } = await import('./_open_browser.js')
 
-        const auth = await run_oauth_flow({ open_browser: open_url })
+        // Single primitive shared with the GUI bridge: OAuth + persist token
+        // + return the channel list to pick from.
+        const session = await slack_oauth_login(storage, { open_browser: open_url })
 
-        // Persist token + team info.
-        await slack_config_set(storage, SLACK_KEYS.user_token, auth.access_token)
-        await slack_config_set(storage, SLACK_KEYS.team_id, auth.team_id)
-        await slack_config_set(storage, SLACK_KEYS.team_name, auth.team_name)
-        await slack_config_set(storage, SLACK_KEYS.user_id, auth.user_id)
-        await slack_config_set(
-            storage,
-            SLACK_KEYS.token_created_at,
-            Math.floor(Date.now() / 1000)
-        )
+        console.log(`Authenticated as <@${session.user_id}> in ${session.team_name}.`)
 
-        console.log(`Authenticated as <@${auth.user_id}> in ${auth.team_name}.`)
-
-        // Confirm who we are and pick a channel.
-        const client = new SlackClient(auth.access_token)
-        const who = await client.auth_test()
-        console.log(`auth.test -> ${who.user_name} (${who.team_name})`)
-
-        const channels = await client.list_private_channels()
+        const channels = session.channels
         if (channels.length === 0) {
             console.error(
                 'No private channels found for this user.'
@@ -115,8 +101,7 @@ const slack_login = new Command('login')
             chosen = channels.find(c => c.name === 'seeqrets') || channels[0]
         }
 
-        await slack_config_set(storage, SLACK_KEYS.channel_id, chosen.id)
-        await slack_config_set(storage, SLACK_KEYS.channel_name, chosen.name)
+        await slack_set_channel(storage, chosen.id, chosen.name)
 
         console.log(`\nOK. Exchange channel set to #${chosen.name} (${chosen.id}).`)
         console.log('Next: run `jseeqret slack doctor` before sending.')

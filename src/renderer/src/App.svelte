@@ -8,6 +8,8 @@
     import ExportView from './lib/components/ExportView.svelte'
     import ImportView from './lib/components/ImportView.svelte'
     import IntroductionView from './lib/components/IntroductionView.svelte'
+    import OnboardingView from './lib/components/OnboardingView.svelte'
+    import OnboardingWizard from './lib/components/OnboardingWizard.svelte'
 
     let view = $state('dashboard')
     let filter = $state('*')
@@ -57,19 +59,7 @@
                 <span>Connecting to vault...</span>
             </div>
         {:else if !vault_status.initialized}
-            <div class="not-initialized">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="48" height="48" class="init-icon">
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                </svg>
-                <h2>Vault not initialized</h2>
-                <p>
-                    Set the <code>JSEEQRET</code> environment variable
-                    (or <code>SEEQRET</code>) and restart, or use the CLI:
-                </p>
-                <div class="init-command">
-                    <code>jseeqret init &lt;dir&gt; --user &lt;username&gt; --email &lt;email&gt;</code>
-                </div>
-            </div>
+            <OnboardingWizard vault_status={vault_status} onrefresh={handle_vault_switch} />
         {:else}
             {#key refresh_key}
             {#if view === 'dashboard'}
@@ -102,6 +92,8 @@
                 <ImportView />
             {:else if view === 'introduction'}
                 <IntroductionView />
+            {:else if view === 'onboarding'}
+                <OnboardingView />
             {/if}
             {/key}
         {/if}
@@ -142,54 +134,6 @@
         display: flex;
         gap: 12px;
         align-items: center;
-    }
-
-    .not-initialized {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        text-align: center;
-        padding: 80px 20px;
-        gap: 16px;
-    }
-
-    .init-icon {
-        color: var(--accent);
-        opacity: 0.6;
-    }
-
-    .not-initialized h2 {
-        color: var(--accent);
-        font-size: 20px;
-    }
-
-    .not-initialized p {
-        color: var(--text-muted);
-        max-width: 500px;
-    }
-
-    .not-initialized code {
-        background: var(--bg-input);
-        padding: 2px 6px;
-        border-radius: 4px;
-        font-family: var(--font-mono);
-        font-size: 13px;
-    }
-
-    .init-command {
-        margin-top: 8px;
-    }
-
-    .init-command code {
-        display: inline-block;
-        padding: 10px 18px;
-        background: var(--bg-card);
-        border: 1px solid var(--border);
-        border-radius: 6px;
-        font-family: var(--font-mono);
-        font-size: 14px;
-        color: var(--success);
     }
 
     .loading {

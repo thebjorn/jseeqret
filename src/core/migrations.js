@@ -144,6 +144,33 @@ function init_db_v003(db) {
 }
 
 /**
+ * Migration 004: Onboarding state machine.
+ *
+ * One row per invitee, keyed by email. Captures the introduction
+ * fingerprint AND pubkey locally at receive time so the team lead can
+ * approve even after Slack's 24h retention drops the introduction blob
+ * (see documentation/onboarding/plan.md, Risks: retention vs. approval).
+ */
+function init_db_v004(db) {
+    db.run(`
+        CREATE TABLE IF NOT EXISTS onboarding (
+            email            TEXT PRIMARY KEY,
+            username         TEXT,
+            slack_handle     TEXT,
+            slack_user_id    TEXT,
+            project_filter   TEXT,
+            fingerprint      TEXT,
+            pubkey           TEXT,
+            state            TEXT NOT NULL,
+            created_at       INTEGER NOT NULL,
+            updated_at       INTEGER NOT NULL
+        );
+    `)
+
+    db.run('INSERT OR IGNORE INTO migrations (version) VALUES (4)')
+}
+
+/**
  * Run all pending migrations.
  * @param {string} vault_dir
  * @param {string} username
@@ -167,6 +194,10 @@ export async function run_migrations(vault_dir, username, email, pubkey) {
 
         if (version < 3) {
             init_db_v003(db)
+        }
+
+        if (version < 4) {
+            init_db_v004(db)
         }
 
         save_db(db, db_path)
@@ -198,6 +229,12 @@ export async function upgrade_db(vault_dir) {
         if (version < 3) {
             init_db_v003(db)
             console.log('Upgraded to version 3.')
+            upgraded = true
+        }
+
+        if (version < 4) {
+            init_db_v004(db)
+            console.log('Upgraded to version 4.')
             upgraded = true
         }
 

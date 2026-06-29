@@ -12,3 +12,10 @@ export { JsonCryptSerializer } from './json-crypt.js'
 export { InsecureJsonSerializer } from './backup.js'
 export { CommandSerializer } from './command.js'
 export { EnvSerializer } from './env.js'
+export { UserListSerializer } from './user-list.js'
+export {
+    ENVELOPE_VERSION,
+    MESSAGE_KINDS,
+    wrap_envelope,
+    parse_envelope,
+} from './envelope.js'

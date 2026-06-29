@@ -3,7 +3,7 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import pkg from 'electron-updater'
 const { autoUpdater } = pkg
-import { register_ipc_handlers } from './ipc-handlers.js'
+import { register_ipc_handlers, ensure_active_vault_migrated } from './ipc-handlers.js'
 
 function createWindow() {
     const mainWindow = new BrowserWindow({
@@ -78,7 +78,7 @@ function setup_auto_updater(main_window) {
     autoUpdater.checkForUpdatesAndNotify()
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
     electronApp.setAppUserModelId('com.jseeqret')
 
     app.on('browser-window-created', (_, window) => {
@@ -86,6 +86,10 @@ app.whenReady().then(() => {
     })
 
     register_ipc_handlers()
+    // Migrate the active vault BEFORE the renderer mounts, so existing
+    // vaults gain new tables (e.g. onboarding) without a race against the
+    // first handler calls.
+    await ensure_active_vault_migrated()
     const main_window = createWindow()
 
     if (!is.dev) {

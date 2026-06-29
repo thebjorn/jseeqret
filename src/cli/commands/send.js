@@ -29,11 +29,8 @@ import { require_vault, resolve_user_or_exit } from '../utils.js'
 
 import { SlackClient } from '../../core/slack/client.js'
 import { send_blob } from '../../core/slack/transport.js'
-import {
-    SLACK_KEYS,
-    slack_config_get,
-    slack_config_snapshot,
-} from '../../core/slack/config.js'
+import { slack_config_snapshot } from '../../core/slack/config.js'
+import { slack_preflight_problems } from '../../core/slack/session.js'
 import { require_verified_binding } from '../../core/slack/identity.js'
 
 /**
@@ -68,31 +65,6 @@ async function _build_ciphertext(storage, filters_arr, recipient) {
         ciphertext: serializer.dumps(all_secrets),
         count: all_secrets.length,
     }
-}
-
-/**
- * Quick preflight mirror of `slack doctor`'s minimum bar. Full doctor
- * runs are a separate command; this exists so `send` fails closed fast
- * without needing to dial Slack first.
- */
-function _preflight_slack_cfg(snap) {
-    const problems = []
-    if (!snap.user_token) problems.push('not logged in (jseeqret slack login)')
-    if (!snap.channel_id) problems.push('no channel set')
-
-    if (snap.token_created_at) {
-        const age = Math.floor((Date.now() / 1000 - snap.token_created_at) / 86400)
-        if (age > 90) problems.push(`token is ${age} days old (>90)`)
-    }
-
-    if (!snap.mfa_attested_at) {
-        problems.push('MFA not attested (jseeqret slack doctor --accept)')
-    } else {
-        const age = Math.floor((Date.now() / 1000 - snap.mfa_attested_at) / 86400)
-        if (age > 90) problems.push(`MFA attestation is ${age} days old (>90)`)
-    }
-
-    return problems
 }
 
 /**
@@ -156,7 +128,7 @@ export const send_command = new Command('send')
         }
 
         const snap = await slack_config_snapshot(storage)
-        const problems = _preflight_slack_cfg(snap)
+        const problems = slack_preflight_problems(snap)
         if (problems.length > 0) {
             console.error('Slack transport not ready:')
             for (const p of problems) console.error(`  - ${p}`)

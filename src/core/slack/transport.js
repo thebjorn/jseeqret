@@ -20,6 +20,7 @@
 
 import { randomUUID } from 'crypto'
 import { pad_to_bucket, unpad_from_bucket } from './padding.js'
+import { wrap_envelope, parse_envelope } from '../serializers/envelope.js'
 
 /**
  * @param {object} opts
@@ -74,6 +75,83 @@ export async function send_blob({ client, channel_id, recipient_slack_user_id, c
 }
 
 /**
+ * Send a typed payload (an envelope) addressed to a recipient. The
+ * envelope text becomes the transport "ciphertext"; everything else is
+ * `send_blob`. The payload's sensitive fields must already be encrypted
+ * by the relevant serializer -- the envelope is plaintext structure.
+ *
+ * @param {object} opts
+ * @param {import('./client.js').SlackClient} opts.client
+ * @param {string} opts.channel_id
+ * @param {string} opts.recipient_slack_user_id
+ * @param {string} opts.kind - one of MESSAGE_KINDS
+ * @param {any} opts.payload - JSON-serializable
+ * @returns {Promise<{file_id: string, file_ts: string, reply_ts: string}>}
+ */
+export async function send_payload({
+    client,
+    channel_id,
+    recipient_slack_user_id,
+    kind,
+    payload,
+}) {
+    const ciphertext = wrap_envelope(kind, payload)
+    return send_blob({ client, channel_id, recipient_slack_user_id, ciphertext })
+}
+
+/**
+ * Poll the exchange channel for typed envelopes addressed to me. Wraps
+ * `poll_inbox`, parsing each frame's bytes as an envelope. A legacy
+ * untyped blob is yielded as kind `secret`. Frames that are not valid
+ * JSON are skipped (they are not ours).
+ *
+ * @param {object} opts - same shape as poll_inbox
+ * @returns {AsyncGenerator<{
+ *   kind: string,
+ *   payload: any,
+ *   version: number|null,
+ *   sender_user_id: string,
+ *   file_id: string,
+ *   file_ts: string,
+ *   reply_ts: string,
+ *   ciphertext: Buffer,
+ * }>}
+ */
+export async function* poll_envelopes({
+    client,
+    channel_id,
+    self_user_id,
+    oldest_ts = '0',
+}) {
+    for await (const frame of poll_inbox({
+        client,
+        channel_id,
+        self_user_id,
+        oldest_ts,
+    })) {
+        const text = Buffer.from(frame.ciphertext).toString('utf-8')
+
+        let env
+        try {
+            env = parse_envelope(text)
+        } catch {
+            continue
+        }
+
+        yield {
+            kind: env.kind,
+            payload: env.payload,
+            version: env.version,
+            sender_user_id: frame.sender_user_id,
+            file_id: frame.file_id,
+            file_ts: frame.file_ts,
+            reply_ts: frame.reply_ts,
+            ciphertext: frame.ciphertext,
+        }
+    }
+}
+
+/**
  * Poll the exchange channel for new blobs addressed to me.
  *
  * A message is "addressed to me" when its thread contains a reply whose
@@ -118,24 +196,33 @@ export async function* poll_inbox({
         const blob_file = files.find(f => (f.name || '').startsWith('jsenc-'))
         if (!blob_file) continue
 
-        // Check the thread for a `<@self>` mention from some other user.
-        const replies = await client.web.conversations.replies({
-            channel: channel_id,
-            ts: msg.ts,
-        })
-        const thread = (replies.messages || [])
-        const mention = thread.find(
-            m => m.ts !== msg.ts && (m.text || '').trim() === self_mention
-        )
-        if (!mention) continue
+        // Resolve the mention + download the bytes. A single unreadable or
+        // malformed blob must NOT abort the whole poll (it would strand
+        // every later, valid envelope), so failures here skip this message.
+        let mention_ts
+        let ciphertext
+        try {
+            const replies = await client.web.conversations.replies({
+                channel: channel_id,
+                ts: msg.ts,
+            })
+            const thread = (replies.messages || [])
+            const mention = thread.find(
+                m => m.ts !== msg.ts && (m.text || '').trim() === self_mention
+            )
+            if (!mention) continue
+            mention_ts = mention.ts
 
-        const info = await client.file_info(blob_file.id)
-        const raw = await client.download_file(info.url_private)
-        const ciphertext = unpad_from_bucket(raw)
+            const info = await client.file_info(blob_file.id)
+            const raw = await client.download_file(info.url_private)
+            ciphertext = unpad_from_bucket(raw)
+        } catch {
+            continue
+        }
 
         yield {
             file_ts: msg.ts,
-            reply_ts: mention.ts,
+            reply_ts: mention_ts,
             file_id: blob_file.id,
             sender_user_id: msg.user,
             ciphertext,

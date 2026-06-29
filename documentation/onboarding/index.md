@@ -8,6 +8,30 @@ transport. For the manual, command-by-command setup see the
 [end-user guide](../user-guide/end-user.md). For the build plan see
 [plan.md](plan.md).
 
+## Two front doors (same primitives)
+
+The flow below is implemented once in `src/core/onboarding.js` and driven
+two ways:
+
+- **GUI (default).** The team lead uses the **Onboarding** panel (invite
+  form, in-flight list, Approve dialog). The new user gets a **first-run
+  wizard** (create vault → Slack login → introduce → wait → done). The
+  Approve dialog and the wizard both surface the one irreducible
+  out-of-band fingerprint check as an explicit, hard-to-skip gate.
+- **CLI (power users / automation).** The same steps, headless:
+
+  ```
+  jseeqret onboard invite --email <e> --project <filter> [--name <n>]
+  jseeqret onboard watch          # team lead: poll for introductions
+  jseeqret onboard approve <email>
+  jseeqret onboard join           # new user: verify TL fp + introduce
+  jseeqret onboard receive        # new user: import teammates + secrets
+  jseeqret onboard status
+  ```
+
+The security gate (the fingerprint check) is **re-validated in core**, so
+neither front door can skip it.
+
 ## Definitions
 
 TL
