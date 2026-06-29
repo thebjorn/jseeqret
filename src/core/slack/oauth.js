@@ -37,12 +37,15 @@ export const SLACK_CLIENT_ID = process.env.JSEEQRET_SLACK_CLIENT_ID
     || '25158173844.10894054396469'
 
 /**
- * Slack Client Secret. Required by oauth.v2.access even with PKCE.
- * Not security-critical for a public-distribution app with user tokens
- * (the secret is shipped in every client), but avoid pasting in logs.
+ * Slack Client Secret. Required by oauth.v2.access. This is a real
+ * secret: never hardcode it or ship it in the client bundle. Supply it
+ * at runtime via the JSEEQRET_SLACK_CLIENT_SECRET environment variable.
+ * For local development, source it from the vault, e.g.
+ *   JSEEQRET_SLACK_CLIENT_SECRET="$(seeqret get seeqret:prod:SLACK_CLIENT_SECRET)"
+ * For public distribution the token exchange should move server-side so
+ * the secret never reaches end users (see documentation/slack-exchange).
  */
 export const SLACK_CLIENT_SECRET = process.env.JSEEQRET_SLACK_CLIENT_SECRET
-    || 'ca7ee68f19624a212755c6ed3cc1d91b'
 
 /**
  * Public HTTPS redirect URL. Slack requires HTTPS for redirect URIs,
@@ -74,6 +77,15 @@ function _random_url_safe(bytes) {
         .replace(/\+/g, '-')
         .replace(/\//g, '_')
         .replace(/=+$/, '')
+}
+
+function _escape_html(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
 }
 
 function _pkce_pair() {
@@ -115,7 +127,10 @@ function _start_loopback(expected_state) {
 
             if (got_error) {
                 res.writeHead(400, { 'Content-Type': 'text/html' })
-                res.end(`<h1>Slack login failed</h1><p>${got_error}</p>`)
+                res.end(
+                    '<h1>Slack login failed</h1>'
+                    + `<p>${_escape_html(got_error)}</p>`
+                )
                 reject_code(new Error(`slack oauth error: ${got_error}`))
                 return
             }
@@ -177,6 +192,15 @@ function _start_loopback(expected_state) {
  * }>}
  */
 export async function run_oauth_flow(opts = {}) {
+    if (!SLACK_CLIENT_SECRET) {
+        throw new Error(
+            'slack oauth: JSEEQRET_SLACK_CLIENT_SECRET is not set. Export '
+            + 'it before running slack login, e.g. '
+            + 'JSEEQRET_SLACK_CLIENT_SECRET='
+            + '"$(seeqret get seeqret:prod:SLACK_CLIENT_SECRET)"'
+        )
+    }
+
     const timeout_ms = opts.timeout_ms ?? 180000
     const open_browser = opts.open_browser
         || (url => console.log(`Open this URL in your browser:\n  ${url}`))
