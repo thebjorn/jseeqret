@@ -19,10 +19,11 @@ import { edit_commands } from './commands/edit.js'
 import { users_command } from './commands/users.js'
 import { owner_command } from './commands/owner.js'
 import { whoami_command } from './commands/whoami.js'
-import { keys_command } from './commands/keys.js'
+import { public_key_command } from './commands/public-key.js'
 import { upgrade_command } from './commands/upgrade.js'
 import { info_command } from './commands/info.js'
 import { backup_command } from './commands/backup.js'
+import { backup_html_command } from './commands/backup-html.js'
 import { export_command } from './commands/export.js'
 import { load_command } from './commands/load.js'
 import { env_command } from './commands/env.js'
@@ -65,10 +66,11 @@ program.addCommand(edit_commands)
 program.addCommand(users_command)
 program.addCommand(owner_command)
 program.addCommand(whoami_command)
-program.addCommand(keys_command)
+program.addCommand(public_key_command)
 program.addCommand(upgrade_command)
 program.addCommand(info_command)
 program.addCommand(backup_command)
+program.addCommand(backup_html_command)
 program.addCommand(export_command)
 program.addCommand(load_command)
 program.addCommand(env_command)

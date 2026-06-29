@@ -58,7 +58,7 @@ jseeqret rm key "myapp:prod:DB_PASSWORD"
 jseeqret users
 jseeqret owner
 jseeqret whoami
-jseeqret keys
+jseeqret public-key
 
 # Multi-vault management
 jseeqret vault add myvault /path/to/vault
@@ -66,7 +66,8 @@ jseeqret vault use myvault
 jseeqret vault list
 
 # Export/import
-jseeqret backup
+jseeqret backup                 # plaintext JSON (disaster recovery)
+jseeqret backup-html -o vault.html   # password-protected, self-decrypting HTML
 jseeqret export --to otheruser
 jseeqret load -f export.json
 jseeqret env                    # generate .env from template

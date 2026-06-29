@@ -78,14 +78,17 @@ describe('CLI: whoami', () => {
     })
 })
 
-describe('CLI: keys', () => {
-    it('displays admin keys', () => {
+describe('CLI: public-key', () => {
+    it('displays only the public key, never the private key', () => {
         const result = run_command([
-            'keys',
+            'public-key',
         ], { vault_dir: tmp_dir })
 
         expect(result.exit_code).toBe(0)
-        // Keys should be base64 strings present in output
+        // Shows the public key column...
+        expect(result.stdout).toContain('PublicKey')
+        // ...and never exposes the private key.
+        expect(result.stdout).not.toContain('PrivateKey')
         expect(result.stdout.length).toBeGreaterThan(20)
     })
 })

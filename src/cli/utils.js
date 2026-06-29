@@ -2,6 +2,7 @@
  * CLI utility functions.
  */
 
+import readline from 'readline'
 import Table from 'cli-table3'
 import { is_initialized, get_seeqret_dir } from '../core/vault.js'
 import { SqliteStorage } from '../core/sqlite-storage.js'
@@ -75,6 +76,33 @@ export function as_table(headers, items) {
     })
 
     console.log(lines.join('\n'))
+}
+
+/**
+ * Prompt for a password on the terminal without echoing keystrokes.
+ * Falls back to a normal (echoing) read if stdin is not a TTY, so it
+ * still works when piped. The typed value is never written to stdout.
+ *
+ * @param {string} [prompt]
+ * @returns {Promise<string>}
+ */
+export function read_password(prompt = 'Password: ') {
+    return new Promise((resolve) => {
+        const rl = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout,
+        })
+        let muted = false
+        rl._writeToOutput = (str) => {
+            if (!muted) rl.output.write(str)
+        }
+        rl.question(prompt, (value) => {
+            rl.close()
+            process.stdout.write('\n')
+            resolve(value)
+        })
+        muted = true
+    })
 }
 
 /**

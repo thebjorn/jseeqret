@@ -13,6 +13,7 @@ export { InsecureJsonSerializer } from './backup.js'
 export { CommandSerializer } from './command.js'
 export { EnvSerializer } from './env.js'
 export { UserListSerializer } from './user-list.js'
+export { to_self_decrypting_html, encrypt_payload } from './self-decrypting-html.js'
 export {
     ENVELOPE_VERSION,
     MESSAGE_KINDS,
