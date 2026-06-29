@@ -23,7 +23,6 @@ import { public_key_command } from './commands/public-key.js'
 import { upgrade_command } from './commands/upgrade.js'
 import { info_command } from './commands/info.js'
 import { backup_command } from './commands/backup.js'
-import { backup_html_command } from './commands/backup-html.js'
 import { export_command } from './commands/export.js'
 import { load_command } from './commands/load.js'
 import { env_command } from './commands/env.js'
@@ -70,7 +69,6 @@ program.addCommand(public_key_command)
 program.addCommand(upgrade_command)
 program.addCommand(info_command)
 program.addCommand(backup_command)
-program.addCommand(backup_html_command)
 program.addCommand(export_command)
 program.addCommand(load_command)
 program.addCommand(env_command)

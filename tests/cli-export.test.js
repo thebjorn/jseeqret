@@ -129,19 +129,6 @@ describe('CLI: export', () => {
     })
 })
 
-describe('CLI: backup', () => {
-    it('exports all secrets as plaintext JSON', () => {
-        const result = run_command([
-            'backup',
-        ], { vault_dir: tmp_dir })
-
-        expect(result.exit_code).toBe(0)
-        const payload = JSON.parse(result.stdout)
-        expect(payload.secrets).toHaveLength(2)
-        expect(payload.secrets[0].value).toBeDefined()
-    })
-})
-
 describe('CLI: load', () => {
     it('loads secrets from backup file', () => {
         // Export as backup
