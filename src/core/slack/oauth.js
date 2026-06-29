@@ -10,9 +10,10 @@
  *   5. Exchange the code + verifier for a user token via oauth.v2.access.
  *   6. Shut down the server and return the token.
  *
- * The Client ID is baked into jseeqret (see SLACK_CLIENT_ID below). The
- * Client Secret is not required for the PKCE user-token flow on Slack's
- * loopback redirect path, and we do not ship one.
+ * The Client ID is baked into jseeqret (see SLACK_CLIENT_ID below). No
+ * Client Secret is involved: the Slack app is a PKCE public client, so
+ * the token exchange authenticates with the PKCE code_verifier instead
+ * of a shipped secret.
  *
  * Security notes:
  *  - We never touch the browser's session cookies; Slack handles auth.
@@ -37,15 +38,11 @@ export const SLACK_CLIENT_ID = process.env.JSEEQRET_SLACK_CLIENT_ID
     || '25158173844.10894054396469'
 
 /**
- * Slack Client Secret. Required by oauth.v2.access. This is a real
- * secret: never hardcode it or ship it in the client bundle. Supply it
- * at runtime via the JSEEQRET_SLACK_CLIENT_SECRET environment variable.
- * For local development, source it from the vault, e.g.
- *   JSEEQRET_SLACK_CLIENT_SECRET="$(seeqret get seeqret:prod:SLACK_CLIENT_SECRET)"
- * For public distribution the token exchange should move server-side so
- * the secret never reaches end users (see documentation/slack-exchange).
+ * No Slack Client Secret is used or shipped. The Slack app is configured
+ * as a PKCE public client (pkce_enabled), so the token exchange in
+ * run_oauth_flow authenticates with the PKCE code_verifier instead of a
+ * secret. See https://docs.slack.dev/authentication/using-pkce/.
  */
-export const SLACK_CLIENT_SECRET = process.env.JSEEQRET_SLACK_CLIENT_SECRET
 
 /**
  * Public HTTPS redirect URL. Slack requires HTTPS for redirect URIs,
@@ -192,15 +189,6 @@ function _start_loopback(expected_state) {
  * }>}
  */
 export async function run_oauth_flow(opts = {}) {
-    if (!SLACK_CLIENT_SECRET) {
-        throw new Error(
-            'slack oauth: JSEEQRET_SLACK_CLIENT_SECRET is not set. Export '
-            + 'it before running slack login, e.g. '
-            + 'JSEEQRET_SLACK_CLIENT_SECRET='
-            + '"$(seeqret get seeqret:prod:SLACK_CLIENT_SECRET)"'
-        )
-    }
-
     const timeout_ms = opts.timeout_ms ?? 180000
     const open_browser = opts.open_browser
         || (url => console.log(`Open this URL in your browser:\n  ${url}`))
@@ -237,10 +225,12 @@ export async function run_oauth_flow(opts = {}) {
             ),
         ])
 
+        // PKCE public-client exchange: no client_secret -- the
+        // code_verifier proves we initiated the authorize request.
         const web = new WebClient()
         const r = await web.oauth.v2.access({
             client_id: SLACK_CLIENT_ID,
-            client_secret: SLACK_CLIENT_SECRET,
+            grant_type: 'authorization_code',
             code,
             redirect_uri,
             code_verifier: verifier,
