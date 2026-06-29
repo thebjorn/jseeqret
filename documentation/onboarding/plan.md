@@ -7,6 +7,48 @@ Electron GUI as a wizard for novice users**. The CLI `onboard` commands are
 the underlying primitives that power the same flow for power users and
 automation; the GUI is the default front door.
 
+## Implementation status
+
+**Implemented end to end (2026-06-29, commit `91211a5`).** All 9 phases
+shipped; `pnpm test` green (361 passing), `pnpm build` clean. Core is fully
+unit-tested through an in-memory mock Slack workspace (`tests/slack-mock.js`,
+`tests/onboarding*.test.js`).
+
+What was built, by file:
+
+| Concern | Landed in |
+| ------- | --------- |
+| Typed envelopes | `src/core/serializers/envelope.js`; `transport.send_payload`/`poll_envelopes` |
+| User payload | `src/core/serializers/user-list.js` |
+| Onboarding state | migration **v004** (`src/core/migrations.js`) + `SqliteStorage` CRUD |
+| Slack session over IPC | `src/core/slack/session.js` (shared by CLI + IPC) + `slack:*` handlers |
+| Orchestration | `src/core/onboarding.js` (`onboard_invite/poll/approve/join/receive_invite/provision_poll`, import gates, `expire_stale`, trust context) |
+| GUI | `OnboardingWizard`, `OnboardingView`, `ApproveDialog`, `SlackStatusCard` + `onboard:*` IPC + preload |
+| CLI | `src/cli/commands/onboard.js` (`invite/status/watch/join/receive/approve`) |
+
+Deviations from this plan, as built (kept faithful to its intent):
+
+1. **Trust gate authenticates on the FULL TL pubkey, not the 5-char
+   fingerprint.** An adversarial review found that gating on the 20-bit
+   fingerprint is forgeable: the attacker controls the envelope's
+   `from_pubkey`, so they can grind an offline collision and NaCl Box would
+   still "authenticate" them. Imports now decrypt with the out-of-band-
+   anchored full TL pubkey (`trusted_pubkey`); the fingerprint is only the
+   human voice-call display, recomputed from that pubkey at join. The
+   `complete` ack carries a NaCl-Box proof rather than a plaintext flag.
+2. **The `onboarding` table has an extra `pubkey` column** beyond the schema
+   below: approve needs the user's pubkey, and it must survive Slack's 24h
+   retention exactly like the captured fingerprint.
+3. **Added an `invite` envelope kind** (steps 1-4) so the new user discovers
+   the TL's Slack id + pubkey/fingerprint, and an **`onboard receive`** CLI
+   subcommand alongside `join` for the import step.
+4. **The TL watch loop is renderer-polled** (`onboard:poll` on an interval)
+   rather than a background tray poller (resolved question 3's tray option is
+   deferred; CLI `onboard watch` covers the headless case).
+5. **The GUI migrates the active vault on startup and on switch**, so vaults
+   that predate a migration (e.g. v004) gain new tables — previously only CLI
+   `slack login` ran `upgrade_db`.
+
 ## TL;DR
 
 - Onboarding is **a GUI experience layered on the existing Slack exchange

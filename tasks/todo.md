@@ -67,11 +67,18 @@ same core primitives. **Test-first.**
 - Migration v004 `onboarding` table — schema from the plan **plus a `pubkey`
   column**: approve needs the user's pubkey, and it must survive Slack's 24h
   retention exactly like the captured fingerprint does.
-- Trust gate: `from_pubkey` rides in `user_list`/`secret_batch`/`complete`
-  envelopes, validated against the OOB-verified TL fingerprint (mirrors
-  `slack link`). Re-validated in core (`onboard_approve` + import gates).
+- Trust gate (hardened after the adversarial review — see `lessons.md`):
+  imports authenticate by NaCl-Box-decrypting with the **full** OOB-verified
+  TL pubkey (`trusted_pubkey`), NOT the 5-char fingerprint — a 20-bit
+  fingerprint is forgeable by an offline collision because the attacker
+  controls the envelope's `from_pubkey`. The fingerprint is only the human
+  voice-call display, recomputed from the anchored pubkey at join. The
+  `complete` ack carries a NaCl-Box proof. Re-validated in core
+  (`onboard_approve` + import gates), not just the GUI checkbox.
 - Added an `invite` envelope kind (steps 1-4) so the new user discovers the TL
-  slack id + fingerprint; the plan only named the step 7-16 kinds.
+  slack id + pubkey/fingerprint; the plan only named the step 7-16 kinds.
+- GUI migrates the active vault on startup + on switch (`ensure_migrated`),
+  so vaults predating a migration (e.g. v004) gain new tables.
 
 ### Phases
 
@@ -94,18 +101,37 @@ same core primitives. **Test-first.**
 
 ### Review section
 
-Implemented end to end. Core (`src/core/onboarding.js`, `serializers/envelope.js`,
-`serializers/user-list.js`, `slack/session.js`, migration v004, storage CRUD) is
-fully unit-tested via an in-memory mock Slack workspace (`tests/slack-mock.js`):
-the complete invite→introduce→approve→provision handshake runs across two vaults,
-including the wrong-fingerprint refusal and the unknown-sender rejection. CLI
+**Status: implemented, reviewed, hardened, committed (`91211a5`, 2026-06-29).**
+
+Core (`src/core/onboarding.js`, `serializers/envelope.js`,
+`serializers/user-list.js`, `slack/session.js`, migration v004, storage CRUD)
+is fully unit-tested via an in-memory mock Slack workspace
+(`tests/slack-mock.js`): the complete invite→introduce→approve→provision
+handshake runs across two vaults, including the wrong-fingerprint refusal,
+the forged-sender rejection, and the resumable/idempotent approve. CLI
 `onboard` wraps the same primitives; IPC (`slack:*`, `onboard:*`) + preload +
-four Svelte components (SlackStatusCard, OnboardingView, ApproveDialog,
-OnboardingWizard) surface them. `pnpm test` green (351 passing); `pnpm build`
-clean.
+four Svelte components surface them.
 
-### Verification
+Adversarial review (4-dimension find→verify fan-out) confirmed 13 findings;
+fixed the substantive ones:
+- **High (security):** import gate authenticated on the 20-bit fingerprint —
+  forgeable. Now decrypts with the full OOB-anchored TL pubkey.
+- `complete` ack now carries a NaCl-Box proof (no plaintext-forge strand).
+- `poll_inbox` skips a single bad blob instead of aborting the whole poll.
+- `onboard_provision_poll` skips-and-continues per envelope.
+- `conversations.history` now paginates (was one 100-message page).
+- `onboard_invite` refuses to clobber an in-progress row.
+- `onboard_approve` is resumable + idempotent; derives a slack handle.
+- Deferred (low, documented): unverified serializer `signature` (Box auth
+  covers integrity); user-side poll cursor (delete-after-import makes
+  re-scan correct, just not maximally efficient).
 
-- `pnpm test` (vitest) — primary gate.
-- `node src/cli/index.js onboard --help`.
-- `pnpm build` — electron-vite compiles Svelte/main/preload.
+Post-review fix: the GUI never migrated existing vaults, so v3 vaults hit
+`no such table: onboarding`. The main process now migrates the active vault
+on startup + on switch.
+
+### Verification (final)
+
+- `pnpm test` — **361 passing** / 5 skipped, 36 files.
+- `node src/cli/index.js onboard --help` — loads.
+- `pnpm build` — electron-vite compiles Svelte/main/preload, clean.
