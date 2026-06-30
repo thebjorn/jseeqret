@@ -78,31 +78,50 @@ function setup_auto_updater(main_window) {
     autoUpdater.checkForUpdatesAndNotify()
 }
 
-app.whenReady().then(async () => {
-    electronApp.setAppUserModelId('com.jseeqret')
+// Single-instance guard. A secrets manager must never run two processes
+// against the same vault -- concurrent SQLite writers risk corruption. A
+// second launch fails to take the lock and exits immediately; the running
+// instance catches `second-instance` and refocuses its window instead.
+const got_instance_lock = app.requestSingleInstanceLock()
 
-    app.on('browser-window-created', (_, window) => {
-        optimizer.watchWindowShortcuts(window)
+if (!got_instance_lock) {
+    app.quit()
+} else {
+    app.on('second-instance', () => {
+        const [existing] = BrowserWindow.getAllWindows()
+        if (existing) {
+            if (existing.isMinimized()) existing.restore()
+            existing.show()
+            existing.focus()
+        }
     })
 
-    register_ipc_handlers()
-    // Migrate the active vault BEFORE the renderer mounts, so existing
-    // vaults gain new tables (e.g. onboarding) without a race against the
-    // first handler calls.
-    await ensure_active_vault_migrated()
-    const main_window = createWindow()
+    app.whenReady().then(async () => {
+        electronApp.setAppUserModelId('com.jseeqret')
 
-    if (!is.dev) {
-        setup_auto_updater(main_window)
-    }
+        app.on('browser-window-created', (_, window) => {
+            optimizer.watchWindowShortcuts(window)
+        })
 
-    app.on('activate', () => {
-        if (BrowserWindow.getAllWindows().length === 0) createWindow()
+        register_ipc_handlers()
+        // Migrate the active vault BEFORE the renderer mounts, so existing
+        // vaults gain new tables (e.g. onboarding) without a race against the
+        // first handler calls.
+        await ensure_active_vault_migrated()
+        const main_window = createWindow()
+
+        if (!is.dev) {
+            setup_auto_updater(main_window)
+        }
+
+        app.on('activate', () => {
+            if (BrowserWindow.getAllWindows().length === 0) createWindow()
+        })
     })
-})
 
-app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') {
-        app.quit()
-    }
-})
+    app.on('window-all-closed', () => {
+        if (process.platform !== 'darwin') {
+            app.quit()
+        }
+    })
+}

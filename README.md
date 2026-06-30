@@ -33,6 +33,11 @@ npm install -g jseeqret
 Download the signed installer from the
 [latest release](https://github.com/thebjorn/jseeqret/releases/latest).
 
+The installer ships the **GUI only** and does not add the `jseeqret`
+command to your `PATH` -- the GUI covers the full onboarding flow, so a
+terminal is never required. If you also want the CLI (e.g. for scripting
+invites/approvals), install it separately with `npm install -g jseeqret`.
+
 ## CLI Usage
 
 ```bash

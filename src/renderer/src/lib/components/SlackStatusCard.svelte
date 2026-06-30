@@ -9,6 +9,13 @@
     let channels = $state([])
     let busy = $state(false)
     let error = $state(null)
+    let attest_confirmed = $state(false)
+
+    // MFA-flavoured problems are routed to the attest control below, so we
+    // drop them from the generic list to avoid showing the CLI hint twice.
+    const other_problems = $derived(
+        (status?.problems || []).filter(p => !p.startsWith('MFA'))
+    )
 
     async function load_status() {
         try {
@@ -28,6 +35,21 @@
             if (channels.length === 0) {
                 error = 'No private channels found. Create #seeqrets and re-try.'
             }
+            await load_status()
+        } catch (e) {
+            error = e.message
+        } finally {
+            busy = false
+        }
+    }
+
+    async function attest() {
+        busy = true
+        error = null
+        try {
+            await window.api.slackAttest()
+            // load_status() re-reads the preflight and fires onready, which
+            // advances the wizard past the Slack step.
             await load_status()
         } catch (e) {
             error = e.message
@@ -93,12 +115,34 @@
                 <div class="row"><span>Token age</span><span>{status.token_age_days} days</span></div>
             {/if}
         </div>
-        {#if !status.ready && status.problems?.length}
-            <ul class="problems">
-                {#each status.problems as p}
-                    <li>{p}</li>
-                {/each}
-            </ul>
+        {#if !status.ready}
+            {#if status.needs_mfa_attest}
+                <div class="attest">
+                    <p class="attest-note">
+                        Final step: confirm this workspace is protected. Only
+                        attest if your admin has told you the workspace enforces
+                        SSO and hardware MFA.
+                    </p>
+                    <label class="attest-check">
+                        <input type="checkbox" bind:checked={attest_confirmed}>
+                        This workspace enforces SSO + hardware MFA
+                    </label>
+                    <button
+                        class="primary"
+                        disabled={!attest_confirmed || busy}
+                        onclick={attest}
+                    >
+                        {busy ? 'Recording...' : 'Attest & continue'}
+                    </button>
+                </div>
+            {/if}
+            {#if other_problems.length}
+                <ul class="problems">
+                    {#each other_problems as p (p)}
+                        <li>{p}</li>
+                    {/each}
+                </ul>
+            {/if}
         {/if}
     {/if}
 </div>
@@ -188,8 +232,33 @@
     .problems {
         margin: 0;
         padding-left: 18px;
-        color: var(--accent);
-        font-size: 12px;
+        color: var(--warning);
+        font-size: 13px;
+        line-height: 1.5;
+    }
+
+    .attest {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 12px;
+        background: rgba(240, 160, 48, 0.08);
+        border: 1px solid var(--warning);
+        border-radius: 6px;
+    }
+
+    .attest-note {
+        font-size: 13px;
+        line-height: 1.5;
+        color: var(--text);
+    }
+
+    .attest-check {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        cursor: pointer;
     }
 
     .alert.error {
