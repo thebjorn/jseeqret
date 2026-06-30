@@ -45,7 +45,7 @@ company-vault (root)
 
 | Feature                            | Relationship                                                                                                 |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| [Multi-Vault](../multi-vault/)     | Prerequisite -- vaults must be addressable by name in a registry.                                            |
+| [Multi-Vault](../completed/multi-vault/)     | Prerequisite -- vaults must be addressable by name in a registry.                                            |
 | [Linked Vault](../linked-vault/)   | Trust links are a formalized version of vault links, with cryptographic verification and policy inheritance. |
 | [Shared Vault](../shared-vault/)   | A shared vault can be a node in the hierarchy. Its ACL can inherit rules from a parent.                      |
 | [Master Vault](../master-vault/)   | The hierarchy root is *not* a master vault -- it delegates rather than centralizes.                          |

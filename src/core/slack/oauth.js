@@ -54,7 +54,7 @@ export const SLACK_REDIRECT_URL =
 
 /**
  * The set of User Token Scopes jseeqret requests. Keep in sync with
- * documentation/slack-exchange/PLAN.md.
+ * documentation/completed/slack-exchange/PLAN.md.
  */
 export const SLACK_USER_SCOPES = [
     'channels:history',

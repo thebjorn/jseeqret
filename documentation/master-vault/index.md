@@ -35,7 +35,7 @@ The other feature areas provide the benefits of centralization without the risks
 
 | Master Vault Benefit | Alternative                                                                              |
 | -------------------- | ---------------------------------------------------------------------------------------- |
-| One place to manage  | [Multi-Vault](../multi-vault/) with registry -- name-based access to any vault           |
+| One place to manage  | [Multi-Vault](../completed/multi-vault/) with registry -- name-based access to any vault           |
 | Consistency          | [Linked Vault](../linked-vault/) sync -- eventual consistency without central dependency |
 | Shared access        | [Shared Vault](../shared-vault/) -- scoped to a team, not the whole org                  |
 | Audit                | Audit columns in each vault + [Auto-Rotation](../auto-rotation/) audit command           |

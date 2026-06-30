@@ -2,19 +2,26 @@
 This is the documentation for developers working on the project. It includes information about the architecture, coding standards, and other technical details.
 
 
+## Implemented features
+
+Built and shipped — their design docs live in [`completed/`](completed/):
+
+- [Onboarding](completed/onboarding/index.md) — GUI-first, Slack-mediated new-user onboarding
+- [Multi-Vault](completed/multi-vault/index.md) — Multiple named vaults per user
+- [Slack Exchange](completed/slack-exchange/index.md) — Private Slack channel as a vault-to-vault transport
+
+
 ## Table of Contents
 
 - [Server Vaults](server-vault/index.md) — Runtime secret access and admin management
 - [Vault-to-Vault Communication](vault-to-vault/index.md) — Sharing secrets between vaults
 - [Shared Vault](shared-vault/index.md) — Multi-user access to a single vault
-- [Multi-Vault](multi-vault/index.md) — Multiple vaults per user
 - [Master Vault](master-vault/index.md) — Centralized vault design and trade-offs
 - [Vault Hierarchy](vault-hierarchy/index.md) — Web of trust and granular access control
 - [Auto-Rotation](auto-rotation/index.md) — Secret expiration and rotation
 - [Rotation](rotation/index.md) — Active secret rotation: safe staging, promotion, and propagation
 - [Linked Vault](linked-vault/index.md) — Keeping multiple personal vaults in sync
 - [Sync-Merge](sync-merge/index.md) — Conflict resolution algorithm for vault synchronization
-- [Slack Exchange](slack-exchange/index.md) — Using a private Slack channel as a vault-to-vault transport
 
 
 ## Platform Hardening
@@ -32,11 +39,9 @@ Each feature area has a dedicated security review covering threat modeling, risk
 
 - [Auto-Rotation](auto-rotation/security-concerns.md) — Rotation != revocation, clock skew, audit metadata leakage
 - [Linked Vault](linked-vault/security-concerns.md) — Cloud sync exposure, unsigned manifests, stale outbox files
-- [Multi-Vault](multi-vault/security-concerns.md) — Registry misdirection, path injection, vault location disclosure
 - [Server Vault](server-vault/security-concerns.md) — File watcher injection, privilege separation, reload atomicity
 - [Shared Vault](shared-vault/security-concerns.md) — Advisory ACL bypass, identity spoofing, key distribution
 - [Sync-Merge](sync-merge/security-concerns.md) — LWW overwrites, tombstone manipulation, replay attacks
-- [Slack Exchange](slack-exchange/security-concerns.md) — Bot token custody, Slack handle trust binding, retention vs. forward secrecy
 - [Vault-to-Vault](vault-to-vault/security-concerns.md) — No forward secrecy, inbox persistence, unsigned exports
 - [Vault Hierarchy](vault-hierarchy/security-concerns.md) — Trust revocation gaps, DAG scope bypass, policy cascade
 - [Master Vault](master-vault/security-concerns.md) — Reinforces anti-pattern decision (single point of compromise)

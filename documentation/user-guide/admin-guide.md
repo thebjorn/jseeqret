@@ -21,7 +21,7 @@ An attacker who compromises Slack (or the workspace admin account) can
 see metadata and delete messages, but cannot read any secret -- unless
 they also hold a recipient's local NaCl private key.
 
-Read [`../slack-exchange/security-concerns.md`](../slack-exchange/security-concerns.md)
+Read [`../slack-exchange/security-concerns.md`](../completed/slack-exchange/security-concerns.md)
 before you start. The nine concerns there drive every decision in this
 guide. You do not need to memorize them, but you should know which ones
 the `slack doctor` command enforces, because that is what your users

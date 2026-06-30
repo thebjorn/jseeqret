@@ -9,7 +9,7 @@ This document analyzes seven interconnected feature areas for jseeqret's evoluti
 | 1   | [Server Vault](../../server-vault/)       | How does a web server read secrets at runtime? |
 | 2   | [Vault-to-Vault](../../vault-to-vault/)   | How do two vaults exchange secrets securely?   |
 | 3   | [Shared Vault](../../shared-vault/)       | How do multiple users access one vault?        |
-| 4   | [Multi-Vault](../../multi-vault/)         | How does one user manage multiple vaults?      |
+| 4   | [Multi-Vault](../../completed/multi-vault/)         | How does one user manage multiple vaults?      |
 | 5   | [Master Vault](../../master-vault/)       | Should there be one vault to rule them all?    |
 | 6   | [Vault Hierarchy](../../vault-hierarchy/) | How to organize vaults in a trust tree?        |
 | 7   | [Auto-Rotation](../../auto-rotation/)     | How to handle secret expiration and rotation?  |

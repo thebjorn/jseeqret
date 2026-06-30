@@ -3,7 +3,7 @@
     // explicit "verified on a voice call" checkbox plus a type-back, and
     // keeps Approve disabled until both are satisfied. The flag is passed to
     // the core primitive, which RE-VALIDATES it -- this dialog is UX, not
-    // authority (see documentation/onboarding/plan.md, Trust model).
+    // authority (see documentation/completed/onboarding/plan.md, Trust model).
 
     let { row, onclose, onapproved } = $props()
 

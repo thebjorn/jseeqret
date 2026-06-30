@@ -119,7 +119,7 @@ function init_db_v002(db) {
  * Migration 003: Slack exchange — add slack columns to users and create
  * the encrypted kv table used for Slack tokens and channel config.
  *
- * See documentation/slack-exchange/PLAN.md for the full rationale.
+ * See documentation/completed/slack-exchange/PLAN.md for the full rationale.
  */
 function init_db_v003(db) {
     if (!column_exists(db, 'users', 'slack_handle')) {
@@ -149,7 +149,7 @@ function init_db_v003(db) {
  * One row per invitee, keyed by email. Captures the introduction
  * fingerprint AND pubkey locally at receive time so the team lead can
  * approve even after Slack's 24h retention drops the introduction blob
- * (see documentation/onboarding/plan.md, Risks: retention vs. approval).
+ * (see documentation/completed/onboarding/plan.md, Risks: retention vs. approval).
  */
 function init_db_v004(db) {
     db.run(`

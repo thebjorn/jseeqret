@@ -4,7 +4,7 @@
  * These compose the existing pieces -- the Slack transport (typed
  * envelopes), the json-crypt / user-list serializers, and the onboarding
  * state table -- into the 16-step flow described in
- * documentation/onboarding/index.md. They are deliberately dependency-
+ * documentation/completed/onboarding/index.md. They are deliberately dependency-
  * injected (storage + Slack client + identities passed in) so the GUI,
  * the CLI, and the test suite all drive the *same* code with a real or a
  * mock client.

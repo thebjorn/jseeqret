@@ -4,8 +4,8 @@ Getting new developers up to speed with as few steps as possible.
 
 This flow rides on the [Slack exchange](../slack-exchange/index.md)
 transport. For the manual, command-by-command setup see the
-[admin guide](../user-guide/admin-guide.md) and the
-[end-user guide](../user-guide/end-user.md). For the build plan see
+[admin guide](../../user-guide/admin-guide.md) and the
+[end-user guide](../../user-guide/end-user.md). For the build plan see
 [plan.md](plan.md).
 
 ## Two front doors (same primitives)
@@ -135,8 +135,8 @@ So onboarding keeps **one irreducible out-of-band check** (step 9):
   authority — NaCl Box authenticates them as coming from the TL.
 
 This is the same rule stated in the
-[admin guide](../user-guide/admin-guide.md) and
-[end-user guide](../user-guide/end-user.md): **never accept a fingerprint
+[admin guide](../../user-guide/admin-guide.md) and
+[end-user guide](../../user-guide/end-user.md): **never accept a fingerprint
 that arrived over Slack, email, or any tamperable channel.** Read it aloud
 on a voice line you trust, or not at all.
 
@@ -146,7 +146,7 @@ on a voice line you trust, or not at all.
   invitation expires and is dropped from the in-flight list instead of
   waiting forever for an approval that will never come.
 - **Introduction lost to retention.** `#seeqrets` retains messages for 24 h
-  (see the [admin guide](../user-guide/admin-guide.md)). If the TL does not
+  (see the [admin guide](../../user-guide/admin-guide.md)). If the TL does not
   approve within that window the Slack blob is gone — but the fingerprint
   captured in step 9 lives in tlVault, so approval still works. If even
   that is lost, the user re-runs the introduction.

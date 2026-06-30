@@ -51,7 +51,7 @@ A vault service (HTTP) exposes endpoints for sending and receiving secrets.
 | [Linked Vault](../linked-vault/)   | Automated vault-to-vault sync for the same user's vaults.           |
 | [Shared Vault](../shared-vault/)   | Alternative: instead of sending secrets, share a vault.             |
 | [Sync-Merge](../sync-merge/)       | The merge algorithm used when vaults sync bidirectionally.          |
-| [Multi-Vault](../multi-vault/)     | The registry provides addressable vault names for `--to` targeting. |
+| [Multi-Vault](../completed/multi-vault/)     | The registry provides addressable vault names for `--to` targeting. |
 | [Auto-Rotation](../auto-rotation/) | Rotated secrets should propagate to recipients.                     |
 
 ## Use Cases

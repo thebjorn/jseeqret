@@ -64,8 +64,8 @@ Deviations from this plan, as built (kept faithful to its intent):
   state machine**, and the IPC + Svelte surface that exposes all of it.
 - **One security decision dominates the design:** the diagram as drawn
   auto-trusts a public key that arrives over Slack. That contradicts the
-  cornerstone rule in [`../user-guide/admin-guide.md`](../user-guide/admin-guide.md)
-  and [`../user-guide/end-user.md`](../user-guide/end-user.md) ("never accept
+  cornerstone rule in [`../user-guide/admin-guide.md`](../../user-guide/admin-guide.md)
+  and [`../user-guide/end-user.md`](../../user-guide/end-user.md) ("never accept
   a fingerprint that came over Slack"). The flow must keep **exactly one
   irreducible out-of-band fingerprint check** per onboarding. The GUI makes
   that check *easier* but never *automatic*. See [Trust model](#trust-model).
@@ -404,8 +404,8 @@ TL panel's in-flight list.
   TL <-> user onboarding through the GUI, including the wrong-fingerprint
   refusal and a retention-window expiry.
 - Docs: update [`index.md`](index.md), the
-  [admin](../user-guide/admin-guide.md) /
-  [end-user](../user-guide/end-user.md) guides (add the GUI wizard path
+  [admin](../../user-guide/admin-guide.md) /
+  [end-user](../../user-guide/end-user.md) guides (add the GUI wizard path
   alongside the CLI path), and `tasks/lessons.md`.
 
 ## Dependency: qualified identity (landed)

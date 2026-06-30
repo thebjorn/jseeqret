@@ -44,7 +44,7 @@ A vault service mediates all access. Users authenticate with their NaCl keypair.
 
 | Feature                                | Relationship                                                                                       |
 | -------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| [Multi-Vault](../multi-vault/)         | A shared vault appears in each user's registry, pointing to the same directory.                    |
+| [Multi-Vault](../completed/multi-vault/)         | A shared vault appears in each user's registry, pointing to the same directory.                    |
 | [Vault-to-Vault](../vault-to-vault/)   | Alternative: instead of sharing a vault, send secrets between individual vaults.                   |
 | [Linked Vault](../linked-vault/)       | Complementary: linked vault = one user, multiple vaults. Shared vault = multiple users, one vault. |
 | [Auto-Rotation](../auto-rotation/)     | Rotated secrets in a shared vault are immediately visible to all users.                            |

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Multi-vault adds a registry that maps human-readable vault names to directory paths, plus CLI/GUI support for switching between vaults. This is a foundational feature that [linked vault](../linked-vault/), [shared vault](../shared-vault/), and [vault hierarchy](../vault-hierarchy/) all build on.
+Multi-vault adds a registry that maps human-readable vault names to directory paths, plus CLI/GUI support for switching between vaults. This is a foundational feature that [linked vault](../../linked-vault/), [shared vault](../../shared-vault/), and [vault hierarchy](../../vault-hierarchy/) all build on.
 
 ## Phase 1: Vault Registry
 

@@ -73,9 +73,9 @@ secret).
 
 | Feature                                  | Relationship                                                       |
 | ---------------------------------------- | ------------------------------------------------------------------ |
-| [Vault-to-Vault](../vault-to-vault/)     | Slack is a concrete implementation of "Model B: Shared mailbox".   |
-| [Linked Vault](../linked-vault/)         | Same threat model; third-party cloud holds ciphertext.             |
-| [Server Vault](../server-vault/)         | Alternative to running a vault service for admin -> server pushes. |
+| [Vault-to-Vault](../../vault-to-vault/)     | Slack is a concrete implementation of "Model B: Shared mailbox".   |
+| [Linked Vault](../../linked-vault/)         | Same threat model; third-party cloud holds ciphertext.             |
+| [Server Vault](../../server-vault/)         | Alternative to running a vault service for admin -> server pushes. |
 | [Multi-Vault](../multi-vault/)           | Slack user handle can be the addressable vault name (`--to @bob`). |
 
 ## Use Cases

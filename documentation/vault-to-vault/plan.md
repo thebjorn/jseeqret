@@ -2,7 +2,7 @@
 
 ## Overview
 
-This plan improves the existing export/import workflow with convenience commands, a mailbox delivery mechanism, and a secret request protocol. It builds on the existing NaCl transit encryption and the [multi-vault](../multi-vault/) registry.
+This plan improves the existing export/import workflow with convenience commands, a mailbox delivery mechanism, and a secret request protocol. It builds on the existing NaCl transit encryption and the [multi-vault](../completed/multi-vault/) registry.
 
 ## Phase 1: Ergonomic Export/Import
 

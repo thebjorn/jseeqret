@@ -8,7 +8,7 @@
  *                 through src/core/slack/transport.js into the
  *                 configured exchange channel.
  *
- * Security guardrails (see documentation/slack-exchange/PLAN.md):
+ * Security guardrails (see documentation/completed/slack-exchange/PLAN.md):
  *  - Refuses to send via Slack unless the recipient has been linked
  *    via `jseeqret slack link` and the stored fingerprint still
  *    matches the live pubkey.

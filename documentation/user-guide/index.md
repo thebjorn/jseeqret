@@ -16,6 +16,6 @@ Two guides live here:
   for secrets, please log in".
 
 Both guides focus on the Slack-based exchange transport (see
-[`../slack-exchange/`](../slack-exchange/) for the design). The older
+[`../slack-exchange/`](../completed/slack-exchange/) for the design). The older
 file-based `export` / `load` commands still work and are covered in
 their command help (`jseeqret export --help`).

@@ -9,7 +9,7 @@ Vault hierarchy introduces cryptographic trust links between vaults, enabling po
 ## Prerequisites
 
 - **Vault identity** (from [linked vault](../linked-vault/plan.md) Phase 2) -- each vault has a stable UUID.
-- **Multi-vault registry** (from [multi-vault](../multi-vault/plan.md)) -- vaults are addressable by name.
+- **Multi-vault registry** (from [multi-vault](../completed/multi-vault/plan.md)) -- vaults are addressable by name.
 - **Sync-merge** (from [sync-merge](../sync-merge/plan.md)) -- conflict resolution for secret propagation.
 - **ACL** (from [shared vault](../shared-vault/plan.md)) -- access control rules that can be inherited.
 
