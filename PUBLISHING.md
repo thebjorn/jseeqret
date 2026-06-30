@@ -80,7 +80,11 @@ uses your `GH_TOKEN` PAT (not CI's `GITHUB_TOKEN`), it fires the
 
 ### 7. Build and sign the installer locally
 
+First clear `dist/` — electron-builder never cleans it, so installers from
+past releases pile up and can get swept onto the release in step 8:
+
 ```bash
+rm -rf dist        # PowerShell: Remove-Item dist/* -Recurse -Force
 pnpm dist:nsis
 ```
 
@@ -99,17 +103,27 @@ dist/jseeqret-setup-<version>.exe
 
 ### 8. Upload the signed installer to the GitHub release
 
+Upload the **matched trio** with explicit filenames — the installer, its
+blockmap (for differential updates), and `latest.yml`:
+
 ```bash
-gh release upload v<new_version> "dist/jseeqret-setup-<version>.exe" dist/latest.yml --clobber
+gh release upload v<new_version> "dist/jseeqret-setup-<version>.exe" "dist/jseeqret-setup-<version>.exe.blockmap" dist/latest.yml --clobber
 ```
 
-The `--clobber` flag replaces any unsigned artifacts that CI may have
-uploaded earlier.
+> **Never** `gh release upload v<new_version> dist/*.exe`. Because `dist/`
+> accumulates every past build, the glob uploads stale installers (e.g.
+> 1.0.x, 2.0.0) onto the new release **and** silently skips `latest.yml` —
+> which breaks auto-update. Always name the three files explicitly.
+
+`latest.yml` must come from the **same** `pnpm dist:nsis` build as the
+uploaded `.exe` — electron-updater verifies the exe's sha512/size against it.
+The `--clobber` flag replaces any file already on the release.
 
 ### 9. Verify
 
-- **GitHub release**: https://github.com/thebjorn/jseeqret/releases
-  — confirm the signed `.exe` and `latest.yml` are listed
+- **Release assets**: `gh release view v<new_version> --json assets` — confirm
+  **exactly three** (the signed `.exe`, its `.exe.blockmap`, and `latest.yml`)
+  and no stray installers from older versions
 - **npm**: `npm view jseeqret version` — confirm the new version is published
 - **Signature**: run `signtool verify /pa /v "dist/jseeqret-setup-<version>.exe"`
   to confirm the installer is properly signed and timestamped
@@ -127,7 +141,9 @@ uploaded earlier.
   create a draft GitHub release. This conflicts with a release that already
   exists. Use `pnpm dist:nsis` for local builds when the release is already
   created, then upload manually with `gh release upload`.
-- `latest.yml` is used by `electron-updater` for auto-updates. Always
-  upload it alongside the installer.
+- `latest.yml` is **required** by `electron-updater`; without it (or with one
+  that doesn't match the uploaded `.exe`), every deployed client throws
+  "update failed" on launch. Upload it — plus the `.exe.blockmap` — from the
+  same build as the `.exe`, every time. Never upload via a `dist/*.exe` glob.
 - The hardware token cannot be used in CI. Signed installers must be built
   locally.
