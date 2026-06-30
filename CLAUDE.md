@@ -25,7 +25,7 @@ Run a single test file: `pnpm exec vitest run tests/api.test.js`
 
 ### Three-layer design
 
-- **`src/core/`** — Shared library (also the npm package export). Contains all business logic: encryption, storage, models, serializers, API. This is what tests cover.
+- **`src/core/`** — Shared library (also the npm package export). Contains all business logic: encryption, storage, models, serializers, API. This is what the coverage metric tracks (the CLI is tested too — see Testing).
 - **`src/cli/`** — CLI built on Commander.js. Each command is a separate file in `commands/`. Entry point: `src/cli/index.js`.
 - **`src/main/` + `src/preload/` + `src/renderer/`** — Electron app. Main process handles IPC, preload bridges via `contextBridge`, renderer uses Svelte 5 with runes (`$state`, `$effect`, `$props`).
 
@@ -110,7 +110,7 @@ The vault directory contains: `seeqrets.db` (SQLite), `seeqret.key` (symmetric),
 
 ## Testing
 
-Tests live in `tests/` and cover `src/core/` only. Each test creates a temporary vault directory and cleans up in `afterEach`. Test globals (`describe`, `it`, `expect`) are enabled via vitest config.
+Tests live in `tests/`. Coverage is *measured* on `src/core/` only (see `coverage.include` in `vitest.config.js`) — that's where the security-sensitive, deterministic logic lives — but the suite is not limited to core. CLI behavior is covered by black-box subprocess tests (`tests/cli-*.test.js`) that run the real binary via the `run_command` helper in `tests/cli-helpers.js`; prefer one of these for any CLI-layer fix that core tests can't reach. Each test creates a temporary vault directory and cleans up in `afterEach`. Test globals (`describe`, `it`, `expect`) are enabled via vitest config.
 
 ## Python Compatibility
 

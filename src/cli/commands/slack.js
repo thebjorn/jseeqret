@@ -198,6 +198,27 @@ const slack_doctor = new Command('doctor')
     .action(async (opts) => {
         require_vault()
         const storage = new SqliteStorage()
+
+        // --accept re-stamps the MFA attestation BEFORE the snapshot is
+        // read, so the same run that records it also reports it passing.
+        // (The connected-apps baseline is re-stamped inline below, where
+        // the live hash is already computed.)
+        if (opts.accept) {
+            const ans = await _prompt(
+                'Confirm workspace enforces SSO + hardware MFA [yes/no]: '
+            )
+            if (ans.trim().toLowerCase() === 'yes') {
+                await slack_config_set(
+                    storage,
+                    SLACK_KEYS.mfa_attested_at,
+                    Math.floor(Date.now() / 1000)
+                )
+                console.log('MFA attestation recorded.')
+            } else {
+                console.log('MFA attestation NOT recorded.')
+            }
+        }
+
         const snap = await slack_config_snapshot(storage)
 
         const results = []
@@ -272,7 +293,8 @@ const slack_doctor = new Command('doctor')
         )
 
         // Connected-apps baseline -- warn on first change, fail thereafter.
-        let apps_result = 'skipped'
+        // With --accept we re-baseline to the live hash and report the
+        // accepted state, so this run does not fail on what it just set.
         if (snap.user_token) {
             try {
                 const client = new SlackClient(snap.user_token)
@@ -280,43 +302,28 @@ const slack_doctor = new Command('doctor')
                 const h = createHash('sha256')
                     .update(JSON.stringify(apps.map(a => a.id || a.name).sort()))
                     .digest('hex')
-                if (!snap.connected_apps_hash) {
-                    apps_result = 'no baseline (run --accept to set)'
-                    check('connected-apps baseline', false, apps_result)
-                } else if (snap.connected_apps_hash === h) {
-                    apps_result = 'unchanged'
-                    check('connected-apps unchanged', true, apps_result)
-                } else {
-                    apps_result = 'CHANGED since last baseline'
-                    check('connected-apps unchanged', false, apps_result)
-                }
-
                 if (opts.accept) {
                     await slack_config_set(
                         storage,
                         SLACK_KEYS.connected_apps_hash,
                         h
                     )
-                    apps_result += ' (re-baselined)'
+                    check(
+                        'connected-apps baseline',
+                        true,
+                        snap.connected_apps_hash ? 're-baselined' : 'baseline set'
+                    )
+                } else if (!snap.connected_apps_hash) {
+                    check('connected-apps baseline', false,
+                        'no baseline (run --accept to set)')
+                } else if (snap.connected_apps_hash === h) {
+                    check('connected-apps unchanged', true, 'unchanged')
+                } else {
+                    check('connected-apps unchanged', false,
+                        'CHANGED since last baseline')
                 }
             } catch (e) {
                 check('connected-apps unchanged', false, `error: ${e.message}`)
-            }
-        }
-
-        if (opts.accept) {
-            const ans = await _prompt(
-                'Confirm workspace enforces SSO + hardware MFA [yes/no]: '
-            )
-            if (ans.trim().toLowerCase() === 'yes') {
-                await slack_config_set(
-                    storage,
-                    SLACK_KEYS.mfa_attested_at,
-                    Math.floor(Date.now() / 1000)
-                )
-                console.log('MFA attestation recorded.')
-            } else {
-                console.log('MFA attestation NOT recorded.')
             }
         }
 
