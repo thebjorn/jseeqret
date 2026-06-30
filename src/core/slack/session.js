@@ -101,6 +101,22 @@ export async function slack_set_channel(storage, channel_id, channel_name) {
 }
 
 /**
+ * Record the operator's MFA attestation -- a promise that the connected
+ * workspace enforces SSO + hardware MFA. Stamps the current time so the
+ * preflight passes for the next 90 days. This is the GUI counterpart to
+ * `slack doctor --accept`; the caller is responsible for obtaining an
+ * explicit confirmation before calling.
+ *
+ * @param {import('../sqlite-storage.js').SqliteStorage} storage
+ * @returns {Promise<number>} the unix-seconds timestamp recorded
+ */
+export async function slack_attest_mfa(storage) {
+    const now = Math.floor(Date.now() / 1000)
+    await slack_config_set(storage, SLACK_KEYS.mfa_attested_at, now)
+    return now
+}
+
+/**
  * A renderer-friendly summary of the current Slack session.
  * @param {import('../sqlite-storage.js').SqliteStorage} storage
  * @returns {Promise<object>}
@@ -110,6 +126,12 @@ export async function slack_session_status(storage) {
     const token_age_days = snap.token_created_at
         ? Math.floor((Date.now() / 1000 - snap.token_created_at) / 86400)
         : null
+
+    // Compute the preflight once. `needs_mfa_attest` is derived here, next
+    // to the messages it keys off, so the GUI can route the operator to its
+    // attest control rather than the CLI hint. Covers both "never attested"
+    // and "attestation stale (>90 days)".
+    const problems = slack_preflight_problems(snap)
 
     return {
         logged_in: !!snap.user_token,
@@ -121,7 +143,8 @@ export async function slack_session_status(storage) {
         last_seen_ts: snap.last_seen_ts || null,
         token_age_days,
         mfa_attested: !!snap.mfa_attested_at,
-        ready: slack_preflight_problems(snap).length === 0,
-        problems: slack_preflight_problems(snap),
+        needs_mfa_attest: problems.some(p => p.startsWith('MFA')),
+        ready: problems.length === 0,
+        problems,
     }
 }

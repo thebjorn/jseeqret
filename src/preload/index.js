@@ -34,6 +34,7 @@ const api = {
     slackLogin: () => ipcRenderer.invoke('slack:login'),
     slackSetChannel: (data) => ipcRenderer.invoke('slack:set-channel', data),
     slackDoctor: () => ipcRenderer.invoke('slack:doctor'),
+    slackAttest: () => ipcRenderer.invoke('slack:attest'),
     slackLogout: () => ipcRenderer.invoke('slack:logout'),
     slackLink: (data) => ipcRenderer.invoke('slack:link', data),
 

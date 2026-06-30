@@ -32,7 +32,7 @@ import {
 } from '../core/slack/config.js'
 import {
     slack_oauth_login, slack_set_channel,
-    slack_session_status, assert_slack_ready,
+    slack_session_status, slack_attest_mfa, assert_slack_ready,
 } from '../core/slack/session.js'
 import { bind_slack_handle, compute_fingerprint } from '../core/slack/identity.js'
 import {
@@ -393,6 +393,15 @@ export function register_ipc_handlers() {
     ipcMain.handle('slack:doctor', async () => {
         const status = await slack_session_status(get_storage())
         return { ready: status.ready, problems: status.problems }
+    })
+
+    // GUI counterpart to `slack doctor --accept`: records the operator's
+    // SSO + hardware-MFA attestation. The renderer obtains an explicit
+    // confirmation before invoking. Returns the refreshed status.
+    ipcMain.handle('slack:attest', async () => {
+        const storage = get_storage()
+        await slack_attest_mfa(storage)
+        return slack_session_status(storage)
     })
 
     ipcMain.handle('slack:logout', async () => {
