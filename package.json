@@ -112,15 +112,15 @@
   "devDependencies": {
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
-    "@sveltejs/vite-plugin-svelte": "^5.1.1",
+    "@sveltejs/vite-plugin-svelte": "^6.2.4",
     "@vitest/coverage-v8": "^4.1.8",
-    "electron": "^41.7.1",
+    "electron": "^42.5.1",
     "electron-builder": "^26.15.0",
     "electron-vite": "^5.0.0",
     "svelte": "^5.56.2",
     "typedoc": "^0.28.19",
     "typescript": "^6.0.3",
-    "vite": "^6.4.3",
+    "vite": "^7.3.6",
     "vitest": "^4.1.8"
   },
   "pnpm": {
