@@ -3,6 +3,7 @@
 ![cicd](https://github.com/thebjorn/jseeqret/actions/workflows/ci.yml/badge.svg)
 [![codecov](https://codecov.io/gh/thebjorn/jseeqret/graph/badge.svg?token=5PQOZLTSYD)](https://codecov.io/gh/thebjorn/jseeqret)
 [![npm version](https://img.shields.io/npm/v/jseeqret)](https://www.npmjs.com/package/jseeqret)
+[![Socket Badge](https://badge.socket.dev/npm/package/jseeqret)](https://badge.socket.dev/npm/package/jseeqret)
 [![downloads](https://img.shields.io/npm/dt/jseeqret)](https://www.npmjs.com/package/jseeqret)
 
 JavaScript/Electron/Svelte 5 port of [seeqret](https://github.com/thebjorn/seeqret) - a secure secrets manager.
