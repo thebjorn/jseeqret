@@ -26,7 +26,12 @@ describe('Fernet', () => {
     it('decrypt rejects tampered token', () => {
         const key = generate_key()
         const token = encrypt(key, Buffer.from('data', 'utf-8'))
-        const tampered = token.slice(0, 20) + 'X' + token.slice(21)
+        // Flip the char at index 20 to a guaranteed-different base64url
+        // char. A fixed 'X' is a no-op when the original is already 'X'
+        // (~1/64 of tokens), which made this test intermittently pass a
+        // tampered-but-unchanged token.
+        const repl = token[20] === 'A' ? 'B' : 'A'
+        const tampered = token.slice(0, 20) + repl + token.slice(21)
         expect(() => decrypt(key, tampered)).toThrow()
     })
 
