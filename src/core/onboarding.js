@@ -39,6 +39,7 @@ import {
 import { MESSAGE_KINDS } from './serializers/envelope.js'
 import { JsonCryptSerializer } from './serializers/json-crypt.js'
 import { UserListSerializer } from './serializers/user-list.js'
+import { trace } from './trace.js'
 import {
     slack_config_get, slack_config_set, slack_config_delete,
 } from './slack/config.js'
@@ -630,9 +631,21 @@ export async function onboard_provision_poll(storage, client, opts) {
     })) {
         if (Number(env.file_ts) > Number(highest_ts)) highest_ts = env.file_ts
 
-        const drop = () => delete_thread({
-            client, channel_id, file_id: env.file_id, reply_ts: env.reply_ts,
-        })
+        // Forward-secrecy cleanup is best-effort: a plain member cannot
+        // delete the TL's messages (`cant_delete_message` -- only admins
+        // and the author can), so a failed delete must NOT surface as an
+        // import warning. The envelope lingers until Slack retention
+        // reaps it; imports stay idempotent if it is seen again.
+        const drop = async () => {
+            try {
+                await delete_thread({
+                    client, channel_id,
+                    file_id: env.file_id, reply_ts: env.reply_ts,
+                })
+            } catch (e) {
+                trace(`provision cleanup of ${env.file_id} failed: ${e.message}`)
+            }
+        }
 
         try {
             if (env.kind === MESSAGE_KINDS.user_list) {

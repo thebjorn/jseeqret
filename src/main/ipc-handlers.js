@@ -92,8 +92,16 @@ function ensure_migrated(vault_dir) {
  * Best-effort: a failure is logged, not fatal.
  */
 export async function ensure_active_vault_migrated() {
+    let vault_dir
     try {
-        await ensure_migrated(get_active_vault_dir())
+        vault_dir = get_active_vault_dir()
+    } catch {
+        // Fresh machine: no env var and no registry yet -- nothing to
+        // migrate, and not an error (the first-run wizard handles it).
+        return
+    }
+    try {
+        await ensure_migrated(vault_dir)
     } catch (e) {
         log_error('vault migration on startup failed:', e)
     }

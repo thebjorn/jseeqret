@@ -461,6 +461,43 @@ describe('onboard_provision_poll (user, steps 13-16)', () => {
         expect(secrets.find(s => s.key === 'NOPE')).toBeUndefined()
     })
 
+    it('a failed cleanup delete is not an import warning', async () => {
+        // Real-Slack behavior: a plain member cannot delete the TL's
+        // messages (cant_delete_message) -- the import succeeded, so
+        // the wizard must not report "could not be imported".
+        await onboard_invite(tl_storage, ws.client('U_TL'), {
+            email: 'newbie@test.com', project: 'myapp:*:*', name: 'newbie@host',
+            channel_id: CHANNEL, self: tl_self,
+        })
+        await onboard_join(user_storage, ws.client('U_USER'), {
+            channel_id: CHANNEL, self: user_self, tl_slack_user_id: 'U_TL',
+        })
+        await onboard_poll(tl_storage, ws.client('U_TL'), { channel_id: CHANNEL, self_user_id: 'U_TL' })
+        const row0 = await tl_storage.onboarding_get('newbie@test.com')
+        await onboard_approve(tl_storage, ws.client('U_TL'), {
+            email: 'newbie@test.com', verified: true, fingerprint: row0.fingerprint,
+            channel_id: CHANNEL, self: tl_self, sender_private_key: tl_kp.secretKey,
+        })
+
+        const base = ws.client('U_USER')
+        const client = Object.assign(
+            Object.create(Object.getPrototypeOf(base)), base,
+        )
+        client.delete_message = async () => {
+            throw new Error('An API error occurred: cant_delete_message')
+        }
+
+        const result = await onboard_provision_poll(user_storage, client, {
+            channel_id: CHANNEL, self_user_id: 'U_USER',
+            receiver_private_key: user_kp.secretKey,
+            trusted_pubkey: tl_self.pubkey,
+        })
+
+        expect(result.complete).toBe(true)
+        expect(result.imported_users).toBeGreaterThanOrEqual(3)
+        expect(result.warnings).toHaveLength(0)
+    })
+
     it('imports nothing when the verified key is not the real TL key', async () => {
         await onboard_invite(tl_storage, ws.client('U_TL'), {
             email: 'newbie@test.com', project: 'myapp:*:*', name: 'newbie@host',
