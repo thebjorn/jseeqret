@@ -27,6 +27,11 @@ export const ENVELOPE_VERSION = 1
  *  - user_list     TL -> user: teammate records (steps 12-13)
  *  - secret_batch  TL -> user: project-scoped secrets (steps 14-15)
  *  - complete      TL -> user: onboarding finished ack (step 16)
+ *  - received      user -> TL: provisioning imported; the TL may now
+ *                  delete their own provisioning envelopes (the receiver
+ *                  usually cannot -- cant_delete_message)
+ *  - selftest      self -> self: transport health probe (send, match,
+ *                  delete); never carries secrets
  */
 export const MESSAGE_KINDS = {
     secret: 'secret',
@@ -35,6 +40,8 @@ export const MESSAGE_KINDS = {
     user_list: 'user_list',
     secret_batch: 'secret_batch',
     complete: 'complete',
+    received: 'received',
+    selftest: 'selftest',
 }
 
 /**

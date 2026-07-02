@@ -16,6 +16,7 @@
     let step = $state('loading')
     let error = $state(null)
     let busy = $state(false)
+    let display_name = $state('')  // human name for the owner profile
 
     let me = $state(null)          // { username, email, pubkey, fingerprint }
     let invite = $state(null)      // received invite payload
@@ -120,7 +121,12 @@
         try {
             // onboarding: true marks the new vault as mid-wizard so the
             // app keeps this component mounted after `initialized` flips.
-            const result = await window.api.createVault({ onboarding: true })
+            // The name lands on the owner row and rides along in the
+            // introduction, so the TL sees a person, not a user@host.
+            const result = await window.api.createVault({
+                onboarding: true,
+                name: display_name.trim() || null,
+            })
             if (!result.canceled) onrefresh?.()
         } catch (e) {
             error = e.message
@@ -277,6 +283,11 @@
                 Pick a folder for your personal vault. Everything else is
                 automatic.
             </p>
+            <label class="field">
+                <span>Your name (shown to teammates)</span>
+                <input type="text" bind:value={display_name}
+                    placeholder="e.g. Alice Larsen" autocomplete="name">
+            </label>
             <button class="primary" disabled={busy} onclick={create_vault}>
                 {busy ? 'Creating...' : 'Choose folder & create vault'}
             </button>
@@ -573,7 +584,7 @@
     .alert.error {
         background: rgba(233, 69, 96, 0.15);
         border: 1px solid var(--accent);
-        color: var(--accent);
+        color: var(--danger-text);
         padding: 10px 14px;
         border-radius: 6px;
         font-size: 13px;

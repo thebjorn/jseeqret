@@ -10,6 +10,8 @@
     let busy = $state(false)
     let error = $state(null)
     let attest_confirmed = $state(false)
+    let testing = $state(false)
+    let test_result = $state(null)
 
     // MFA-flavoured problems are routed to the attest control below, so we
     // drop them from the generic list to avoid showing the CLI hint twice.
@@ -55,6 +57,22 @@
             error = e.message
         } finally {
             busy = false
+        }
+    }
+
+    // Live probe against the REAL workspace: send an envelope to
+    // yourself, prove the poller matches it, delete it. The mocked test
+    // suite cannot catch a broken thread structure — this can.
+    async function run_selftest() {
+        testing = true
+        test_result = null
+        error = null
+        try {
+            test_result = await window.api.slackSelftest()
+        } catch (e) {
+            error = e.message
+        } finally {
+            testing = false
         }
     }
 
@@ -115,6 +133,20 @@
                 <div class="row"><span>Token age</span><span>{status.token_age_days} days</span></div>
             {/if}
         </div>
+        {#if status.ready}
+            <div class="selftest">
+                <button class="test-btn" disabled={testing} onclick={run_selftest}>
+                    {testing ? 'Testing transport...' : 'Test transport'}
+                </button>
+                {#if test_result}
+                    <span class="test-result" class:ok={test_result.ok}>
+                        {test_result.ok
+                            ? 'send / match / delete — all good'
+                            : test_result.error}
+                    </span>
+                {/if}
+            </div>
+        {/if}
         {#if !status.ready}
             {#if status.needs_mfa_attest}
                 <div class="attest">
@@ -237,6 +269,41 @@
         line-height: 1.5;
     }
 
+    .selftest {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .test-btn {
+        padding: 5px 12px;
+        background: transparent;
+        color: var(--text-muted);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        font-size: 12px;
+        cursor: pointer;
+    }
+
+    .test-btn:hover {
+        color: var(--text);
+        border-color: var(--accent);
+    }
+
+    .test-btn:disabled {
+        opacity: 0.5;
+        cursor: default;
+    }
+
+    .test-result {
+        font-size: 12px;
+        color: var(--danger-text);
+    }
+
+    .test-result.ok {
+        color: var(--success);
+    }
+
     .attest {
         display: flex;
         flex-direction: column;
@@ -264,7 +331,7 @@
     .alert.error {
         background: rgba(233, 69, 96, 0.15);
         border: 1px solid var(--accent);
-        color: var(--accent);
+        color: var(--danger-text);
         padding: 8px 12px;
         border-radius: 6px;
         font-size: 13px;

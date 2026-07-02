@@ -255,6 +255,49 @@ export class SqliteStorage {
     }
 
     /**
+     * Update a subset of mutable user columns (name, email, pubkey).
+     * Unknown keys are ignored; an empty update is a no-op. Changing the
+     * pubkey invalidates any verified Slack binding (the stored
+     * fingerprint no longer matches the key), so the binding columns are
+     * cleared in the same write.
+     * @param {string} username
+     * @param {object} fields
+     * @param {string|null} [fields.name]
+     * @param {string} [fields.email]
+     * @param {string} [fields.pubkey]
+     */
+    async update_user(username, fields) {
+        const allowed = ['name', 'email', 'pubkey']
+        const sets = []
+        const params = []
+
+        for (const col of allowed) {
+            if (col in fields) {
+                sets.push(`${col} = ?`)
+                params.push(fields[col])
+            }
+        }
+        if (sets.length === 0) return
+
+        return this._with_db((db) => {
+            if ('pubkey' in fields) {
+                const rows = this._query_rows(
+                    db, 'SELECT pubkey FROM users WHERE username = ?',
+                    [username]
+                )
+                if (rows.length > 0 && rows[0].pubkey !== fields.pubkey) {
+                    sets.push('slack_key_fingerprint = NULL')
+                    sets.push('slack_verified_at = NULL')
+                }
+            }
+            db.run(
+                `UPDATE users SET ${sets.join(', ')} WHERE username = ?`,
+                [...params, username]
+            )
+        }, true)
+    }
+
+    /**
      * Update the slack identity binding for a user.
      * @param {string} username
      * @param {object} fields

@@ -40,6 +40,7 @@ import {
     onboard_introduce,
     onboard_receive_invite,
     onboard_provision_poll,
+    onboard_send_received_ack,
     onboard_approve,
     expire_stale_onboarding,
     set_tl_trust,
@@ -154,22 +155,34 @@ const onboard_watch_cmd = new Command('watch')
         }
         const { storage, client, channel_id, snap } = ctx
         const self_user_id = snap.user_id
+        const private_key = decode_key(load_private_key_str(get_seeqret_dir()))
 
         const tick = async () => {
             await expire_stale_onboarding(storage)
             const oldest = await slack_config_get(storage, SLACK_KEYS.onboard_last_seen_ts) || '0'
             const r = await onboard_poll(storage, client, {
                 channel_id, self_user_id, oldest_ts: oldest,
+                receiver_private_key: private_key,
             })
             for (const ev of r.events) {
-                if (ev.expected) {
+                if (ev.kind === 'received') {
+                    console.log(ev.expected
+                        ? `received: ${ev.email} imported;`
+                          + ` cleaned ${ev.cleaned} provisioning envelope(s)`
+                        : `WARNING: unverifiable received-ack for ${ev.email} — ignored`)
+                } else if (ev.expected) {
                     console.log(`introduced: ${ev.email} (fingerprint ${ev.fingerprint})`)
                 } else {
                     console.log(`WARNING: unexpected introduction from ${ev.email} — not invited`)
                 }
             }
-            if (r.highest_ts !== oldest) {
-                await slack_config_set(storage, SLACK_KEYS.onboard_last_seen_ts, r.highest_ts)
+            // Advance past everything handled plus long-dead unmatched
+            // noise (stale_ts); keep Slack's own ts strings.
+            const next = [oldest, r.highest_ts, r.stale_ts]
+                .filter(Boolean)
+                .reduce((a, b) => (Number(b) > Number(a) ? b : a))
+            if (next !== oldest) {
+                await slack_config_set(storage, SLACK_KEYS.onboard_last_seen_ts, next)
             }
         }
 
@@ -254,15 +267,43 @@ const onboard_receive_cmd = new Command('receive')
             }
 
             const private_key = decode_key(load_private_key_str(get_seeqret_dir()))
+            const oldest = await slack_config_get(
+                storage, SLACK_KEYS.onboard_user_last_seen_ts) || '0'
             const r = await onboard_provision_poll(storage, client, {
                 channel_id, self_user_id,
                 receiver_private_key: private_key,
                 trusted_pubkey: trust.tl_pubkey,
+                oldest_ts: oldest,
             })
             console.log(
                 `Imported ${r.imported_users} teammate(s),`
                 + ` ${r.imported_secrets} secret(s).`
             )
+            for (const w of r.warnings) {
+                console.log(`WARNING: ${w.kind}: ${w.error}`)
+            }
+            // Fail-closed cursor: hold position while anything failed to
+            // import; otherwise skip re-scanning handled + stale noise.
+            if (r.warnings.length === 0) {
+                const next = [oldest, r.highest_ts, r.stale_ts]
+                    .filter(Boolean)
+                    .reduce((a, b) => (Number(b) > Number(a) ? b : a))
+                if (next !== oldest) {
+                    await slack_config_set(
+                        storage, SLACK_KEYS.onboard_user_last_seen_ts, next)
+                }
+            }
+            if (r.complete) {
+                // Tell the TL the imports landed so they can delete their
+                // own provisioning envelopes (we usually cannot).
+                try {
+                    await onboard_send_received_ack(storage, client, {
+                        channel_id, private_key,
+                    })
+                } catch (e) {
+                    console.log(`NOTE: could not ack provisioning: ${e.message}`)
+                }
+            }
             console.log(r.complete ? "You're set up!" : 'Not approved yet — try again later.')
             process.exit(0)
         } catch (e) {

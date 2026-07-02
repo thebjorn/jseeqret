@@ -10,8 +10,12 @@ const api = {
     removeSecret: (filter) => ipcRenderer.invoke('secrets:remove', filter),
     getUsers: () => ipcRenderer.invoke('users:list'),
     addUser: (data) => ipcRenderer.invoke('users:add', data),
+    updateUser: (data) => ipcRenderer.invoke('users:update', data),
+    removeUser: (data) => ipcRenderer.invoke('users:remove', data),
     getVaultKeys: () => ipcRenderer.invoke('vault:keys'),
     exportSecrets: (opts) => ipcRenderer.invoke('secrets:export', opts),
+    exportSecretsSave: (opts) => ipcRenderer.invoke('secrets:export-save', opts),
+    sendSecretsSlack: (opts) => ipcRenderer.invoke('secrets:send-slack', opts),
     importSecrets: (opts) => ipcRenderer.invoke('secrets:import', opts),
     getIntroduction: () => ipcRenderer.invoke('vault:introduction'),
     getSerializers: () => ipcRenderer.invoke('serializers:list'),
@@ -35,6 +39,7 @@ const api = {
     slackLogin: () => ipcRenderer.invoke('slack:login'),
     slackSetChannel: (data) => ipcRenderer.invoke('slack:set-channel', data),
     slackDoctor: () => ipcRenderer.invoke('slack:doctor'),
+    slackSelftest: () => ipcRenderer.invoke('slack:selftest'),
     slackAttest: () => ipcRenderer.invoke('slack:attest'),
     slackLogout: () => ipcRenderer.invoke('slack:logout'),
     slackLink: (data) => ipcRenderer.invoke('slack:link', data),
@@ -52,6 +57,10 @@ const api = {
     onboardJoin: (data) => ipcRenderer.invoke('onboard:join', data),
     onboardProvisionPoll: () => ipcRenderer.invoke('onboard:provision-poll'),
     onboardWizardDone: () => ipcRenderer.invoke('onboard:wizard-done'),
+
+    // Introductions inbox — existing-teammate side
+    onboardInbox: () => ipcRenderer.invoke('onboard:inbox'),
+    onboardAccept: (data) => ipcRenderer.invoke('onboard:accept', data),
 }
 
 if (process.contextIsolated) {

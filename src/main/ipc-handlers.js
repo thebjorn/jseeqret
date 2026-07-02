@@ -34,10 +34,15 @@ import {
     slack_oauth_login, slack_set_channel,
     slack_session_status, slack_attest_mfa, assert_slack_ready,
 } from '../core/slack/session.js'
-import { bind_slack_handle, compute_fingerprint } from '../core/slack/identity.js'
+import {
+    bind_slack_handle, compute_fingerprint, require_verified_binding,
+} from '../core/slack/identity.js'
+import { send_blob } from '../core/slack/transport.js'
+import { transport_selftest } from '../core/slack/selftest.js'
 import {
     onboard_invite, onboard_poll, onboard_approve, onboard_introduce,
     onboard_receive_invite, onboard_provision_poll,
+    onboard_send_received_ack, inbox_introductions, accept_introduction,
     expire_stale_onboarding, set_tl_trust, get_tl_trust,
     get_wizard_state, set_wizard_state,
 } from '../core/onboarding.js'
@@ -196,14 +201,55 @@ export function register_ipc_handlers() {
 
     handle('users:list', async () => {
         const storage = get_storage()
-        const users = await storage.fetch_users()
-        return users.map(u => u.toJSON())
+        const [users, admin] = await Promise.all([
+            storage.fetch_users(),
+            storage.fetch_admin(),
+        ])
+        return users.map(u => ({
+            ...u.toJSON(),
+            fingerprint: compute_fingerprint(u),
+            is_owner: !!admin && u.username === admin.username,
+        }))
     })
 
     handle('users:add', async (_event, { username, email, pubkey, name }) => {
         const storage = get_storage()
         const user = new User(username, email, pubkey, { name: name || null })
         await storage.add_user(user)
+        return { ok: true }
+    })
+
+    handle('users:update', async (_event, { username, name, email, pubkey }) => {
+        const storage = get_storage()
+        const user = await storage.fetch_user(username)
+        if (!user) throw new Error(`User '${username}' not found in vault.`)
+        // The owner's pubkey mirrors the vault's key files -- re-keying
+        // the row alone would desync every export this vault produces.
+        const admin = await storage.fetch_admin()
+        const is_owner = !!admin && admin.username === username
+        if (is_owner && pubkey !== undefined && pubkey !== admin.pubkey) {
+            throw new Error(
+                'Cannot change the vault owner\'s public key: it is bound'
+                + ' to the vault\'s key files.'
+            )
+        }
+        const fields = {}
+        if (name !== undefined) fields.name = name || null
+        if (email !== undefined) fields.email = email
+        if (pubkey !== undefined) fields.pubkey = pubkey
+        await storage.update_user(username, fields)
+        return { ok: true }
+    })
+
+    handle('users:remove', async (_event, { username }) => {
+        const storage = get_storage()
+        const admin = await storage.fetch_admin()
+        if (admin && admin.username === username) {
+            throw new Error('Cannot delete the vault owner.')
+        }
+        const user = await storage.fetch_user(username)
+        if (!user) throw new Error(`User '${username}' not found in vault.`)
+        await storage.remove_user(username)
         return { ok: true }
     })
 
@@ -215,8 +261,11 @@ export function register_ipc_handlers() {
         }
     })
 
-    handle('secrets:export', async (_event, { to, filter, serializer, system }) => {
-        const storage = get_storage()
+    /**
+     * Serialize the matching secrets for one recipient. Shared by the
+     * export / export-save / send-slack handlers.
+     */
+    async function export_for(storage, { to, filter, serializer, system }) {
         const admin = await storage.fetch_admin()
         const vault_dir = get_active_vault_dir()
         const sender_private_key = decode_key(load_private_key_str(vault_dir))
@@ -240,8 +289,124 @@ export function register_ipc_handlers() {
             sender_private_key,
         })
 
-        const output = ser.dumps(secrets, system)
-        return { output, count: secrets.length }
+        return {
+            receiver,
+            output: ser.dumps(secrets, system),
+            count: secrets.length,
+        }
+    }
+
+    // `to` may be one username or a list; each recipient gets their own
+    // (per-key encrypted) output.
+    handle('secrets:export', async (_event, { to, filter, serializer, system }) => {
+        const storage = get_storage()
+        const recipients = Array.isArray(to) ? to : [to]
+        const results = []
+        let count = 0
+        for (const username of recipients) {
+            const r = await export_for(storage, {
+                to: username, filter, serializer, system,
+            })
+            count = r.count
+            results.push({
+                username,
+                email: r.receiver.email,
+                output: r.output,
+                count: r.count,
+            })
+        }
+        return { count, results }
+    })
+
+    const EXPORT_EXT = {
+        'json-crypt': 'json', backup: 'json', env: 'env', command: 'txt',
+    }
+
+    function safe_filename(s) {
+        return String(s).replace(/[^a-z0-9._@-]+/gi, '_')
+    }
+
+    handle('secrets:export-save', async (_event, { to, filter, serializer, system }) => {
+        const storage = get_storage()
+        const recipients = Array.isArray(to) ? to : [to]
+        const results = []
+        for (const username of recipients) {
+            const r = await export_for(storage, {
+                to: username, filter, serializer, system,
+            })
+            results.push({ username, output: r.output, count: r.count })
+        }
+
+        const ext = EXPORT_EXT[serializer] || 'txt'
+        const win = BrowserWindow.getFocusedWindow()
+        const saved = []
+
+        if (results.length === 1) {
+            const r = await dialog.showSaveDialog(win, {
+                title: 'Save export',
+                defaultPath: `seeqret-${safe_filename(results[0].username)}.${ext}`,
+            })
+            if (r.canceled || !r.filePath) return { canceled: true, saved: [] }
+            fs.writeFileSync(r.filePath, results[0].output, 'utf-8')
+            saved.push(r.filePath)
+        } else {
+            const r = await dialog.showOpenDialog(win, {
+                title: 'Choose a directory for the export files',
+                properties: ['openDirectory', 'createDirectory'],
+            })
+            if (r.canceled || r.filePaths.length === 0) {
+                return { canceled: true, saved: [] }
+            }
+            for (const res of results) {
+                const p = path.join(
+                    r.filePaths[0],
+                    `seeqret-${safe_filename(res.username)}.${ext}`,
+                )
+                fs.writeFileSync(p, res.output, 'utf-8')
+                saved.push(p)
+            }
+        }
+        return { canceled: false, saved, count: results[0]?.count ?? 0 }
+    })
+
+    handle('secrets:send-slack', async (_event, { to, filter }) => {
+        const { storage, snap, client } = await slack_ctx()
+        const recipients = Array.isArray(to) ? to : [to]
+        const results = []
+        for (const username of recipients) {
+            try {
+                // Same guardrail as CLI `send --via slack`: the recipient
+                // must hold a verified slack binding.
+                await require_verified_binding(storage, username)
+                const r = await export_for(storage, {
+                    to: username, filter, serializer: 'json-crypt', system: null,
+                })
+                if (!r.receiver.email) {
+                    throw new Error('user has no email to resolve on Slack')
+                }
+                const slack_user =
+                    await client.lookup_user_by_email(r.receiver.email)
+                if (!slack_user) {
+                    throw new Error(
+                        `no Slack user found for ${r.receiver.email}`
+                    )
+                }
+                const sent = await send_blob({
+                    client,
+                    channel_id: snap.channel_id,
+                    recipient_slack_user_id: slack_user.id,
+                    ciphertext: r.output,
+                })
+                results.push({
+                    username, ok: true, count: r.count, file_id: sent.file_id,
+                })
+                log_info(`secrets:send-slack ${r.count} secret(s) -> ${username}`)
+            } catch (e) {
+                log_error(`secrets:send-slack ${username}:`, e)
+                results.push({ username, ok: false, error: e.message })
+            }
+        }
+        return { results }
     })
 
     handle('secrets:import', async (_event, { from_user, serializer, content }) => {
@@ -291,6 +456,7 @@ export function register_ipc_handlers() {
 
         return {
             username: user.username,
+            name: user.name,
             email: user.email,
             pubkey: user.pubkey,
             fingerprint: compute_fingerprint(user),
@@ -395,6 +561,12 @@ export function register_ipc_handlers() {
         registry_add(vault_name, vault_dir)
         registry_use(vault_name)
 
+        // Human display name (the wizard asks for it): stamp it on the
+        // owner row so introductions and approvals carry a real name.
+        if (opts && opts.name) {
+            await get_storage().update_user(username, { name: opts.name })
+        }
+
         // A vault created from the first-run wizard keeps onboarding
         // marked in-progress so the wizard survives `initialized`
         // flipping true (see vault:status).
@@ -438,6 +610,19 @@ export function register_ipc_handlers() {
     handle('slack:doctor', async () => {
         const status = await slack_session_status(get_storage())
         return { ready: status.ready, problems: status.problems }
+    })
+
+    // Live transport probe: send a selftest envelope to yourself, prove
+    // the poller matches it, delete it. Catches real-Slack failures the
+    // mocked test suite cannot (see tasks/lessons.md, share-ts incident).
+    handle('slack:selftest', async () => {
+        const { snap, client } = await slack_ctx()
+        const r = await transport_selftest(client, {
+            channel_id: snap.channel_id, self_user_id: snap.user_id,
+        })
+        log_info(`slack:selftest ok=${r.ok}`
+            + (r.error ? ` error=${r.error}` : ''))
+        return r
     })
 
     // GUI counterpart to `slack doctor --accept`: records the operator's
@@ -509,14 +694,24 @@ export function register_ipc_handlers() {
         const { storage, snap, client } = await slack_ctx()
         await expire_stale_onboarding(storage)
         const oldest = await slack_config_get(storage, SLACK_KEYS.onboard_last_seen_ts) || '0'
+        const receiver_private_key =
+            decode_key(load_private_key_str(get_active_vault_dir()))
         const r = await onboard_poll(storage, client, {
-            channel_id: snap.channel_id, self_user_id: snap.user_id, oldest_ts: oldest,
+            channel_id: snap.channel_id, self_user_id: snap.user_id,
+            oldest_ts: oldest, receiver_private_key,
         })
-        if (r.highest_ts !== oldest) {
-            await slack_config_set(storage, SLACK_KEYS.onboard_last_seen_ts, r.highest_ts)
+        // Advance past everything handled, plus long-dead noise the
+        // poller can never match (stale_ts) -- it was re-scanned from
+        // oldest=0 on every poll otherwise. Compare numerically but keep
+        // Slack's own ts strings (no float reformatting).
+        const next = [oldest, r.highest_ts, r.stale_ts]
+            .filter(Boolean)
+            .reduce((a, b) => (Number(b) > Number(a) ? b : a))
+        if (next !== oldest) {
+            await slack_config_set(storage, SLACK_KEYS.onboard_last_seen_ts, next)
         }
         for (const ev of r.events) {
-            log_info(`onboard:poll introduction from ${ev.email}`
+            log_info(`onboard:poll ${ev.kind} from ${ev.email}`
                 + ` expected=${ev.expected}`)
         }
         const list = await storage.onboarding_list()
@@ -601,9 +796,12 @@ export function register_ipc_handlers() {
             throw new Error('No team-lead trust on file yet. Run join first.')
         }
         const receiver_private_key = decode_key(load_private_key_str(get_active_vault_dir()))
+        const oldest = await slack_config_get(
+            storage, SLACK_KEYS.onboard_user_last_seen_ts) || '0'
         const r = await onboard_provision_poll(storage, client, {
             channel_id: snap.channel_id, self_user_id: snap.user_id,
             receiver_private_key, trusted_pubkey: trust.tl_pubkey,
+            oldest_ts: oldest,
         })
         if (r.imported_users || r.imported_secrets || r.complete) {
             log_info(`onboard:provision-poll imported`
@@ -613,7 +811,61 @@ export function register_ipc_handlers() {
         for (const w of r.warnings) {
             log_error(`onboard:provision-poll ${w.kind}: ${w.error}`)
         }
+        // Fail-closed cursor: never advance while anything in this sweep
+        // failed to import; otherwise move past everything handled plus
+        // long-dead unmatched noise (stale_ts).
+        if (r.warnings.length === 0) {
+            const next = [oldest, r.highest_ts, r.stale_ts]
+                .filter(Boolean)
+                .reduce((a, b) => (Number(b) > Number(a) ? b : a))
+            if (next !== oldest) {
+                await slack_config_set(
+                    storage, SLACK_KEYS.onboard_user_last_seen_ts, next)
+            }
+        }
+        // Provisioning landed: tell the TL so they can delete their own
+        // provisioning envelopes (we usually cannot). Best-effort + one-
+        // shot; a failure just means the envelopes wait for retention.
+        if (r.complete) {
+            try {
+                const ack = await onboard_send_received_ack(storage, client, {
+                    channel_id: snap.channel_id,
+                    private_key: receiver_private_key,
+                })
+                if (ack.sent) log_info('onboard:provision-poll received-ack sent')
+            } catch (e) {
+                log_error('onboard:provision-poll received-ack failed:', e)
+            }
+        }
         return r
+    })
+
+    // -- Introductions inbox (existing-teammate side) --------------------
+
+    handle('onboard:inbox', async () => {
+        const { storage, snap, client } = await slack_ctx()
+        const trust = await get_tl_trust(storage)
+        const receiver_private_key =
+            decode_key(load_private_key_str(get_active_vault_dir()))
+        return inbox_introductions(storage, client, {
+            channel_id: snap.channel_id, self_user_id: snap.user_id,
+            receiver_private_key, trusted_pubkey: trust.tl_pubkey,
+        })
+    })
+
+    handle('onboard:accept', async (_event, opts) => {
+        const { payload, file_id, reply_ts, verified, fingerprint } = opts
+        const { storage, snap, client } = await slack_ctx()
+        const trust = await get_tl_trust(storage)
+        const receiver_private_key =
+            decode_key(load_private_key_str(get_active_vault_dir()))
+        const imported = await accept_introduction(storage, client, {
+            channel_id: snap.channel_id, payload, file_id, reply_ts,
+            receiver_private_key, trusted_pubkey: trust.tl_pubkey,
+            verified: !!verified, fingerprint: fingerprint || null,
+        })
+        log_info(`onboard:accept imported ${imported.length} user(s)`)
+        return { ok: true, imported: imported.map(u => u.toJSON()) }
     })
 
     // Clears the first-run wizard flag -- called when the wizard's done

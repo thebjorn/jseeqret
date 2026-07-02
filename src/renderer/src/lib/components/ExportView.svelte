@@ -1,17 +1,73 @@
 <script>
+    // Export view. Recipients are selected by display NAME; a name fans
+    // out to every user record (machine identity) sharing it, and each
+    // record gets its own per-key encrypted output. Delivery: clipboard
+    // (single recipient), real file save, or the Slack exchange channel.
+
     let users = $state([])
     let secrets = $state([])
     let error = $state(null)
     let success = $state(null)
     let exporting = $state(false)
 
-    let recipient = $state('')
+    let selected = $state(new Set())   // selected group labels
     let filter = $state('*:*:*')
     let serializer = $state('json-crypt')
     let platform = $state('auto')
     let output_mode = $state('clipboard')
 
     let preview_result = $state('')
+    let send_results = $state([])      // per-recipient slack results
+
+    // One entry per display name; a name owned by several machine
+    // identities (user@host records) fans out to all of them.
+    const groups = $derived.by(() => {
+        const by_label = new Map()
+        for (const u of users) {
+            const label = u.name || u.username
+            if (!by_label.has(label)) by_label.set(label, [])
+            by_label.get(label).push(u)
+        }
+        return [...by_label.entries()]
+            .map(([label, members]) => ({ label, members }))
+            .sort((a, b) => a.label.localeCompare(b.label))
+    })
+
+    const recipients = $derived(
+        groups
+            .filter(g => selected.has(g.label))
+            .flatMap(g => g.members)
+    )
+
+    // Only env/command output actually varies by platform.
+    const platform_relevant = $derived(
+        output_mode !== 'slack'
+        && (serializer === 'env' || serializer === 'command')
+    )
+
+    // A clipboard can only hold one importable blob.
+    const clipboard_blocked = $derived(
+        output_mode === 'clipboard' && recipients.length > 1
+    )
+
+    const effective_serializer = $derived(
+        output_mode === 'slack' ? 'json-crypt' : serializer
+    )
+
+    const can_export = $derived(
+        !exporting && recipients.length > 0 && secrets.length > 0
+        && !clipboard_blocked
+    )
+
+    function toggle(label) {
+        const next = new Set(selected)
+        if (next.has(label)) {
+            next.delete(label)
+        } else {
+            next.add(label)
+        }
+        selected = next
+    }
 
     async function load_data() {
         try {
@@ -33,37 +89,46 @@
     }
 
     async function handle_export() {
-        if (!recipient) {
-            error = 'Please select a recipient'
-            return
-        }
-        if (secrets.length === 0) {
-            error = 'No secrets match the filter'
-            return
-        }
-
+        if (!can_export) return
         exporting = true
         error = null
         success = null
+        preview_result = ''
+        send_results = []
+
+        const to = recipients.map(u => u.username)
+        const system = !platform_relevant || platform === 'auto'
+            ? null
+            : platform === 'windows' ? 'win32' : 'linux'
 
         try {
-            const system = platform === 'auto'
-                ? null
-                : platform === 'windows' ? 'win32' : 'linux'
-
-            const result = await window.api.exportSecrets({
-                to: recipient,
-                filter,
-                serializer,
-                system,
-            })
-
             if (output_mode === 'clipboard') {
-                await navigator.clipboard.writeText(result.output)
-                success = `Copied ${result.count} secret(s) to clipboard`
+                const r = await window.api.exportSecrets({
+                    to, filter, serializer: effective_serializer, system,
+                })
+                await navigator.clipboard.writeText(r.results[0].output)
+                preview_result = r.results[0].output
+                success = `Copied ${r.count} secret(s) for `
+                    + `${r.results[0].username} to clipboard`
+            } else if (output_mode === 'file') {
+                const r = await window.api.exportSecretsSave({
+                    to, filter, serializer: effective_serializer, system,
+                })
+                if (!r.canceled) {
+                    success = `Saved ${r.saved.length} file(s): `
+                        + r.saved.join(', ')
+                }
             } else {
-                preview_result = result.output
-                success = `Exported ${result.count} secret(s)`
+                const r = await window.api.sendSecretsSlack({ to, filter })
+                send_results = r.results
+                const ok = r.results.filter(x => x.ok).length
+                const failed = r.results.length - ok
+                success = failed === 0
+                    ? `Sent to ${ok} recipient(s) via Slack`
+                    : null
+                error = failed > 0
+                    ? `${failed} of ${r.results.length} send(s) failed — see below`
+                    : null
             }
         } catch (e) {
             error = e.message
@@ -100,13 +165,39 @@
                 <h2>Export Configuration</h2>
 
                 <div class="form-group">
-                    <label for="recipient">Recipient</label>
-                    <select id="recipient" bind:value={recipient}>
-                        <option value="">Select a user...</option>
-                        {#each users as user}
-                            <option value={user.username}>{user.username} ({user.email})</option>
-                        {/each}
-                    </select>
+                    <span class="field-label">Recipients</span>
+                    {#if groups.length === 0}
+                        <p class="hint">No users in this vault yet.</p>
+                    {:else}
+                        <div class="recipient-list">
+                            {#each groups as g (g.label)}
+                                <label class="recipient">
+                                    <input
+                                        type="checkbox"
+                                        checked={selected.has(g.label)}
+                                        onchange={() => toggle(g.label)}
+                                    >
+                                    <span class="recipient-name">
+                                        {g.label}
+                                        {#if g.members.some(m => m.is_owner)}
+                                            <span class="you">(you)</span>
+                                        {/if}
+                                    </span>
+                                    <span class="recipient-detail">
+                                        {g.members.length === 1
+                                            ? g.members[0].email
+                                            : `${g.members.length} machines`}
+                                    </span>
+                                </label>
+                            {/each}
+                        </div>
+                        <span class="hint">
+                            A name covers every machine identity registered
+                            for it{recipients.length > 0
+                                ? ` — ${recipients.length} recipient record(s) selected`
+                                : ''}.
+                        </span>
+                    {/if}
                 </div>
 
                 <div class="form-group">
@@ -125,25 +216,6 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="serializer">Format</label>
-                    <select id="serializer" bind:value={serializer}>
-                        <option value="json-crypt">JSON Encrypted (json-crypt)</option>
-                        <option value="env">Environment (.env)</option>
-                        <option value="command">Command (set/export)</option>
-                        <option value="backup">Backup (plaintext JSON)</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <span class="field-label">Platform</span>
-                    <div class="toggle-group" role="group" aria-label="Platform">
-                        <button class:active={platform === 'auto'} onclick={() => platform = 'auto'}>Auto</button>
-                        <button class:active={platform === 'windows'} onclick={() => platform = 'windows'}>Windows</button>
-                        <button class:active={platform === 'linux'} onclick={() => platform = 'linux'}>Linux</button>
-                    </div>
-                </div>
-
-                <div class="form-group">
                     <span class="field-label">Output</span>
                     <div class="toggle-group" role="group" aria-label="Output">
                         <button class:active={output_mode === 'clipboard'} onclick={() => output_mode = 'clipboard'}>
@@ -154,25 +226,88 @@
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
                             Save File
                         </button>
+                        <button class:active={output_mode === 'slack'} onclick={() => output_mode = 'slack'}>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M22 2L11 13" /><path d="M22 2l-7 20-4-9-9-4 20-7z" /></svg>
+                            Slack
+                        </button>
                     </div>
+                    {#if clipboard_blocked}
+                        <span class="hint warn-text">
+                            Clipboard holds one export — pick a single
+                            recipient, or switch to Save File / Slack.
+                        </span>
+                    {:else if output_mode === 'slack'}
+                        <span class="hint">
+                            Sends encrypted json-crypt blobs through the
+                            configured exchange channel. Recipients need a
+                            verified Slack binding.
+                        </span>
+                    {/if}
                 </div>
+
+                <div class="form-group">
+                    <label for="serializer">Format</label>
+                    <select id="serializer" bind:value={serializer}
+                        disabled={output_mode === 'slack'}>
+                        <option value="json-crypt">JSON Encrypted (json-crypt)</option>
+                        <option value="env">Environment (.env)</option>
+                        <option value="command">Command (set/export)</option>
+                        <option value="backup">Backup (plaintext JSON)</option>
+                    </select>
+                    {#if output_mode === 'slack'}
+                        <span class="hint">Slack delivery always uses json-crypt.</span>
+                    {/if}
+                </div>
+
+                {#if platform_relevant}
+                    <div class="form-group">
+                        <span class="field-label">Platform</span>
+                        <div class="toggle-group" role="group" aria-label="Platform">
+                            <button class:active={platform === 'auto'} onclick={() => platform = 'auto'}>Auto</button>
+                            <button class:active={platform === 'windows'} onclick={() => platform = 'windows'}>Windows</button>
+                            <button class:active={platform === 'linux'} onclick={() => platform = 'linux'}>Linux</button>
+                        </div>
+                    </div>
+                {/if}
 
                 <button
                     class="primary export-btn"
                     onclick={handle_export}
-                    disabled={exporting || !recipient || secrets.length === 0}
+                    disabled={!can_export}
                 >
                     {#if exporting}
                         <span class="spinner"></span>
                         Exporting...
+                    {:else if output_mode === 'slack'}
+                        Send {secrets.length} Secret{secrets.length !== 1 ? 's' : ''}
+                        to {recipients.length} recipient{recipients.length !== 1 ? 's' : ''}
                     {:else}
                         Export {secrets.length} Secret{secrets.length !== 1 ? 's' : ''}
+                        {recipients.length > 1 ? `× ${recipients.length}` : ''}
                     {/if}
                 </button>
             </div>
         </div>
 
         <div class="preview-section">
+            {#if send_results.length > 0}
+                <div class="card">
+                    <h2>Slack Delivery</h2>
+                    <ul class="send-results">
+                        {#each send_results as r (r.username)}
+                            <li class:ok={r.ok} class:failed={!r.ok}>
+                                <span class="mono">{r.username}</span>
+                                {#if r.ok}
+                                    — sent {r.count} secret(s)
+                                {:else}
+                                    — {r.error}
+                                {/if}
+                            </li>
+                        {/each}
+                    </ul>
+                </div>
+            {/if}
+
             <div class="card">
                 <h2>Matching Secrets ({secrets.length})</h2>
                 {#if secrets.length === 0}
@@ -240,7 +375,7 @@
     .alert.error {
         background: rgba(233, 69, 96, 0.15);
         border: 1px solid var(--accent);
-        color: var(--accent);
+        color: var(--danger-text);
     }
 
     .alert.success {
@@ -292,6 +427,47 @@
         width: 100%;
     }
 
+    .recipient-list {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        max-height: 220px;
+        overflow-y: auto;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 6px;
+        background: var(--bg);
+    }
+
+    .recipient {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 6px 8px;
+        border-radius: 4px;
+        font-size: 14px;
+        cursor: pointer;
+    }
+
+    .recipient:hover {
+        background: rgba(233, 69, 96, 0.08);
+    }
+
+    .recipient-name {
+        font-weight: 500;
+    }
+
+    .you {
+        color: var(--text-muted);
+        font-size: 12px;
+    }
+
+    .recipient-detail {
+        margin-left: auto;
+        color: var(--text-muted);
+        font-size: 12px;
+    }
+
     .filter-input {
         display: flex;
         gap: 8px;
@@ -306,7 +482,10 @@
         font-size: 12px;
         color: var(--text-muted);
         margin-top: 4px;
-        opacity: 0.7;
+    }
+
+    .warn-text {
+        color: var(--warning);
     }
 
     .toggle-group {
@@ -388,6 +567,22 @@
     .preview-table-wrap {
         max-height: 400px;
         overflow-y: auto;
+    }
+
+    .send-results {
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        font-size: 13px;
+    }
+
+    .send-results li.ok {
+        color: var(--success);
+    }
+
+    .send-results li.failed {
+        color: var(--danger-text);
     }
 
     .mono {

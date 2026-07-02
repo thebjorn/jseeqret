@@ -15,7 +15,11 @@
 
     function get_command() {
         if (!user_info) return ''
-        return `jseeqret add user --username ${user_info.username} --email ${user_info.email} --pubkey ${user_info.pubkey}`
+        const name_opt = user_info.name
+            ? ` --name "${user_info.name}"` : ''
+        return `jseeqret add user --username ${user_info.username}`
+            + `${name_opt} --email ${user_info.email}`
+            + ` --pubkey ${user_info.pubkey}`
     }
 
     async function copy_command() {
@@ -54,9 +58,18 @@
                         </svg>
                     </div>
                     <div class="identity-info">
-                        <h2>{user_info.username}</h2>
+                        <h2>{user_info.name || user_info.username}</h2>
+                        {#if user_info.name}
+                            <span class="machine-id">{user_info.username}</span>
+                        {/if}
                         <span class="email">{user_info.email}</span>
                     </div>
+                    {#if user_info.fingerprint}
+                        <div class="fp-box">
+                            <span class="fp-label">Fingerprint</span>
+                            <span class="fp-value">{user_info.fingerprint}</span>
+                        </div>
+                    {/if}
                 </div>
 
                 <div class="key-section">
@@ -161,7 +174,7 @@
     .alert.error {
         background: rgba(233, 69, 96, 0.15);
         border: 1px solid var(--accent);
-        color: var(--accent);
+        color: var(--danger-text);
     }
 
     .intro-content {
@@ -212,6 +225,40 @@
     .email {
         color: var(--text-muted);
         font-size: 14px;
+    }
+
+    .machine-id {
+        display: block;
+        font-family: var(--font-mono);
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+
+    .fp-box {
+        margin-left: auto;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 10px 16px;
+    }
+
+    .fp-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-muted);
+    }
+
+    .fp-value {
+        font-family: var(--font-mono);
+        font-size: 24px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        color: var(--success);
     }
 
     .key-section {

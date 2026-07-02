@@ -5,7 +5,7 @@
     // the core primitive, which RE-VALIDATES it -- this dialog is UX, not
     // authority (see documentation/completed/onboarding/plan.md, Trust model).
 
-    let { row, onclose, onapproved } = $props()
+    let { row, self_fingerprint = null, onclose, onapproved } = $props()
 
     let verified = $state(false)
     let typed = $state('')
@@ -47,6 +47,13 @@
         </p>
 
         <div class="fingerprint">{row.fingerprint}</div>
+
+        {#if self_fingerprint}
+            <div class="own-fp">
+                Read YOUR fingerprint back to them:
+                <span class="own-fp-value">{self_fingerprint}</span>
+            </div>
+        {/if}
 
         {#if error}
             <div class="alert error">{error}</div>
@@ -124,6 +131,27 @@
         padding: 16px;
     }
 
+    .own-fp {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        font-size: 13px;
+        color: var(--text-muted);
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 8px 12px;
+    }
+
+    .own-fp-value {
+        font-family: var(--font-mono);
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        color: var(--success);
+    }
+
     .check {
         display: flex;
         align-items: center;
@@ -183,7 +211,7 @@
     .alert.error {
         background: rgba(233, 69, 96, 0.15);
         border: 1px solid var(--accent);
-        color: var(--accent);
+        color: var(--danger-text);
         padding: 8px 12px;
         border-radius: 6px;
         font-size: 13px;

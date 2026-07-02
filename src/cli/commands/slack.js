@@ -20,6 +20,7 @@ import {
     slack_config_snapshot,
 } from '../../core/slack/config.js'
 import { slack_oauth_login, slack_set_channel } from '../../core/slack/session.js'
+import { transport_selftest } from '../../core/slack/selftest.js'
 import {
     bind_slack_handle,
     compute_fingerprint,
@@ -195,6 +196,9 @@ const slack_link = new Command('link')
 const slack_doctor = new Command('doctor')
     .description('Preflight health check for the Slack exchange transport')
     .option('--accept', 're-baseline connected-apps + MFA attestation', false)
+    .option('--transport',
+        'live self-test: send an envelope to yourself, match it, delete it',
+        false)
     .action(async (opts) => {
         require_vault()
         const storage = new SqliteStorage()
@@ -324,6 +328,29 @@ const slack_doctor = new Command('doctor')
                 }
             } catch (e) {
                 check('connected-apps unchanged', false, `error: ${e.message}`)
+            }
+        }
+
+        // Live transport self-test (--transport): send an envelope to
+        // yourself, prove the poller matches it, delete the thread. This
+        // exercises the REAL workspace's thread structure -- the mocked
+        // suite cannot (see tasks/lessons.md, share-ts incident).
+        if (opts.transport) {
+            if (snap.user_token && snap.channel_id && snap.user_id) {
+                try {
+                    const client = new SlackClient(snap.user_token)
+                    const r = await transport_selftest(client, {
+                        channel_id: snap.channel_id,
+                        self_user_id: snap.user_id,
+                    })
+                    check('transport self-test', r.ok,
+                        r.ok ? 'send/match/delete ok' : r.error)
+                } catch (e) {
+                    check('transport self-test', false, e.message)
+                }
+            } else {
+                check('transport self-test', false,
+                    'requires login + channel')
             }
         }
 

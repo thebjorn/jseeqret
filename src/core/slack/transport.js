@@ -123,12 +123,16 @@ export async function* poll_envelopes({
     channel_id,
     self_user_id,
     oldest_ts = '0',
+    stats = null,
+    stale_after_seconds = STALE_AFTER_SECONDS,
 }) {
     for await (const frame of poll_inbox({
         client,
         channel_id,
         self_user_id,
         oldest_ts,
+        stats,
+        stale_after_seconds,
     })) {
         const text = Buffer.from(frame.ciphertext).toString('utf-8')
 
@@ -137,6 +141,7 @@ export async function* poll_envelopes({
             env = parse_envelope(text)
         } catch {
             trace(`poll_envelopes: frame ${frame.file_ts} is not an envelope, skipped`)
+            _mark_stale(stats, frame.file_ts, stale_after_seconds)
             continue
         }
         trace(`poll_envelopes: frame ${frame.file_ts} kind=${env.kind}`
@@ -156,6 +161,25 @@ export async function* poll_envelopes({
 }
 
 /**
+ * A skipped message older than this is considered permanently
+ * irrelevant to this poller: an in-flight envelope's mention lands
+ * seconds after its upload, so anything mention-less after 15 minutes
+ * is either addressed to someone else or broken. Callers may then
+ * advance their poll cursor past it (see `stats` below) instead of
+ * re-scanning it -- and paying a conversations.replies call for it --
+ * on every poll until Slack retention reaps it.
+ */
+export const STALE_AFTER_SECONDS = 15 * 60
+
+function _mark_stale(stats, ts, stale_after_seconds) {
+    if (!stats) return
+    if (Number(ts) > Date.now() / 1000 - stale_after_seconds) return
+    if (!stats.stale_ts || Number(ts) > Number(stats.stale_ts)) {
+        stats.stale_ts = ts
+    }
+}
+
+/**
  * Poll the exchange channel for new blobs addressed to me.
  *
  * A message is "addressed to me" when its thread contains a reply whose
@@ -167,6 +191,12 @@ export async function* poll_envelopes({
  * @param {string} opts.channel_id
  * @param {string} opts.self_user_id
  * @param {string} [opts.oldest_ts='0']
+ * @param {object} [opts.stats] - mutated in place: `stats.stale_ts` is
+ *        set to the highest ts among skipped messages old enough to be
+ *        permanently irrelevant (never set for young ones, so a cursor
+ *        can never leap over an envelope whose mention is still
+ *        settling). Skips caused by transient errors are NOT marked.
+ * @param {number} [opts.stale_after_seconds]
  * @returns {AsyncGenerator<{
  *   file_ts: string,
  *   reply_ts: string,
@@ -180,6 +210,8 @@ export async function* poll_inbox({
     channel_id,
     self_user_id,
     oldest_ts = '0',
+    stats = null,
+    stale_after_seconds = STALE_AFTER_SECONDS,
 }) {
     const messages = await client.conversations_history({
         channel_id,
@@ -202,6 +234,7 @@ export async function* poll_inbox({
         const blob_file = files.find(f => (f.name || '').startsWith('jsenc-'))
         if (!blob_file) {
             trace(`poll_inbox: msg ${msg.ts} has files but no jsenc-*, skipped`)
+            _mark_stale(stats, msg.ts, stale_after_seconds)
             continue
         }
 
@@ -222,6 +255,7 @@ export async function* poll_inbox({
             if (!mention) {
                 trace(`poll_inbox: ${blob_file.name} at ${msg.ts}:`
                     + ` ${thread.length - 1} replies, none mention me, skipped`)
+                _mark_stale(stats, msg.ts, stale_after_seconds)
                 continue
             }
             mention_ts = mention.ts

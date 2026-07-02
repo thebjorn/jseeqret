@@ -3,13 +3,19 @@
     --bg-card: #16213e;
     --bg-input: #0f3460;
     --bg-sidebar: #111827;
-    --text: #e0e0e0;
-    --text-muted: #8892a4;
+    /* Text colors are picked for WCAG AA on the DARKEST surface they sit
+       on (--bg-input for placeholders/muted labels): text ~12:1, muted
+       ~5.5:1. The old muted (#8892a4) fell below 4:1 on inputs. */
+    --text: #e8eaf0;
+    --text-muted: #a3adc2;
     --accent: #e94560;
     --accent-hover: #ff6b81;
+    /* Readable red for error TEXT on dark surfaces; the raw accent is
+       ~4.4:1 on --bg and dips below AA inside tinted alert boxes. */
+    --danger-text: #ff7d92;
     --success: #4ecca3;
     --success-dim: rgba(78, 204, 163, 0.15);
-    --warning: #f0a030;
+    --warning: #f5b04c;
     --border: #2a2a4a;
     --font-mono: 'Consolas', 'Monaco', 'Courier New', monospace;
     --sidebar-width: 220px;
@@ -92,6 +98,11 @@ input, select, textarea {
 
 input:focus, select:focus, textarea:focus {
     border-color: var(--accent);
+}
+
+::placeholder {
+    color: var(--text-muted);
+    opacity: 0.8;
 }
 
 textarea {

@@ -11,6 +11,7 @@
     let vaults = $state([])
     let loading = $state(true)
     let creating = $state(false)
+    let error = $state(null)
     let dropdown_el = $state(null)
 
     async function load_vaults() {
@@ -24,6 +25,7 @@
     }
 
     async function switch_vault(vault) {
+        error = null
         try {
             const data = { name: vault.name }
             if (vault.from_env) data.vault_path = vault.path
@@ -31,12 +33,13 @@
             open = false
             onswitch?.()
         } catch (e) {
-            console.error('Failed to switch vault:', e)
+            error = `Switch failed: ${e.message}`
         }
     }
 
     async function create_vault() {
         creating = true
+        error = null
         try {
             const result = await window.api.createVault()
             if (!result.canceled) {
@@ -45,18 +48,23 @@
                 onswitch?.()
             }
         } catch (e) {
-            console.error('Failed to create vault:', e)
+            error = `Create failed: ${e.message}`
         } finally {
             creating = false
         }
     }
 
     async function remove_vault(name) {
+        // Unregisters from the vault registry only -- no files are
+        // touched -- but the path can be hard to rediscover, so confirm.
+        if (!confirm(`Unregister vault "${name}" from the list?`
+            + ' (No files are deleted.)')) return
+        error = null
         try {
             await window.api.removeVault({ name })
             await load_vaults()
         } catch (e) {
-            console.error('Failed to remove vault:', e)
+            error = `Remove failed: ${e.message}`
         }
     }
 
@@ -108,6 +116,10 @@
         {#if open}
             <div class="vault-dropdown">
                 <div class="dropdown-header">Switch Vault</div>
+
+                {#if error}
+                    <div class="dropdown-error">{error}</div>
+                {/if}
 
                 <div class="vault-list">
                     {#each vaults as vault (vault.name)}
@@ -280,6 +292,16 @@
         color: var(--text-muted);
         text-transform: uppercase;
         letter-spacing: 0.08em;
+    }
+
+    .dropdown-error {
+        padding: 6px 10px;
+        border-bottom: 1px solid var(--border);
+        background: rgba(233, 69, 96, 0.12);
+        color: var(--danger-text);
+        font-size: 11px;
+        line-height: 1.4;
+        word-break: break-word;
     }
 
     .vault-list {

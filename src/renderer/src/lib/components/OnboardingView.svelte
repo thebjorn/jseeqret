@@ -9,6 +9,7 @@
     let rows = $state([])
     let error = $state(null)
     let notice = $state(null)
+    let me = $state(null)   // own identity incl. fingerprint
 
     let email = $state('')
     let project = $state('')
@@ -35,12 +36,20 @@
         }
     }
 
+    async function load_me() {
+        try {
+            me = await window.api.getIntroduction()
+        } catch { /* not registered yet — fingerprint card stays hidden */ }
+    }
+
     async function poll() {
         if (!slack_ready) return
         try {
             const r = await window.api.onboardPoll()
             rows = r.list
-            const unexpected = r.events.filter(e => !e.expected)
+            const unexpected = r.events.filter(
+                e => e.kind !== 'received' && !e.expected
+            )
             if (unexpected.length > 0) {
                 notice = `Unexpected introduction(s): ${unexpected.map(e => e.email).join(', ')}`
             }
@@ -111,6 +120,7 @@
 
     $effect(() => {
         load_list()
+        load_me()
         poll_timer = setInterval(poll, 15000)
         return () => clearInterval(poll_timer)
     })
@@ -130,6 +140,19 @@
     {/if}
 
     <SlackStatusCard onready={on_slack_ready} />
+
+    {#if me?.fingerprint}
+        <div class="own-fp">
+            <div class="own-fp-text">
+                <span class="own-fp-title">Your fingerprint</span>
+                <span class="own-fp-note">
+                    Read this aloud on the voice call — the person you
+                    onboard verifies it against the invite they received.
+                </span>
+            </div>
+            <span class="own-fp-value">{me.fingerprint}</span>
+        </div>
+    {/if}
 
     <form class="invite-form" onsubmit={submit_invite}>
         <h2>Invite a new user</h2>
@@ -201,6 +224,7 @@
 {#if approve_target}
     <ApproveDialog
         row={approve_target}
+        self_fingerprint={me?.fingerprint}
         onclose={() => approve_target = null}
         onapproved={on_approved}
     />
@@ -223,6 +247,43 @@
     .subtitle {
         color: var(--text-muted);
         font-size: 14px;
+    }
+
+    .own-fp {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 20px;
+        background: var(--bg-card);
+        border: 1px solid var(--success);
+        border-radius: var(--radius);
+        padding: 14px 20px;
+    }
+
+    .own-fp-text {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .own-fp-title {
+        font-size: 14px;
+        font-weight: 600;
+    }
+
+    .own-fp-note {
+        font-size: 12px;
+        color: var(--text-muted);
+        line-height: 1.4;
+    }
+
+    .own-fp-value {
+        font-family: var(--font-mono);
+        font-size: 32px;
+        font-weight: 700;
+        letter-spacing: 0.15em;
+        color: var(--success);
+        flex-shrink: 0;
     }
 
     .invite-form,
@@ -371,7 +432,7 @@
     .alert.error {
         background: rgba(233, 69, 96, 0.15);
         border: 1px solid var(--accent);
-        color: var(--accent);
+        color: var(--danger-text);
     }
 
     .alert.notice {

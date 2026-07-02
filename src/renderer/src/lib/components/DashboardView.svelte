@@ -33,7 +33,8 @@
     </div>
 
     <div class="stats-grid">
-        <div class="stat-card">
+        <button class="stat-card" onclick={() => onnavigate('secrets')}
+            title="Go to Secrets">
             <div class="stat-icon secrets">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
@@ -43,9 +44,10 @@
                 <span class="stat-value">{loading ? '...' : stats.secrets}</span>
                 <span class="stat-label">Secrets</span>
             </div>
-        </div>
+        </button>
 
-        <div class="stat-card">
+        <button class="stat-card" onclick={() => onnavigate('users')}
+            title="Go to Users">
             <div class="stat-icon users">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
@@ -55,9 +57,10 @@
                 <span class="stat-value">{loading ? '...' : stats.users}</span>
                 <span class="stat-label">Users</span>
             </div>
-        </div>
+        </button>
 
-        <div class="stat-card">
+        <button class="stat-card" onclick={() => onnavigate('introduction')}
+            title="Go to your Introduction">
             <div class="stat-icon owner">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
@@ -67,7 +70,7 @@
                 <span class="stat-value mono">{loading ? '...' : (stats.owner || '—')}</span>
                 <span class="stat-label">Vault Owner</span>
             </div>
-        </div>
+        </button>
     </div>
 
     {#if status}
@@ -158,10 +161,18 @@
         align-items: center;
         gap: 16px;
         transition: border-color var(--transition);
+        color: var(--text);
+        font-size: inherit;
+        text-align: left;
+        cursor: pointer;
     }
 
     .stat-card:hover {
         border-color: var(--accent);
+    }
+
+    .stat-card:active {
+        transform: scale(0.99);
     }
 
     .stat-icon {

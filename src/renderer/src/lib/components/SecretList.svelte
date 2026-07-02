@@ -21,22 +21,31 @@
     }
   }
 
-  function toggleReveal(idx) {
+  // Key reveals/copies by the secret's identity, not its row index --
+  // filtering or sorting reorders rows, and an index-keyed reveal would
+  // suddenly expose a different secret's value.
+  function secret_id(secret) {
+    return `${secret.app}:${secret.env}:${secret.key}`
+  }
+
+  function toggleReveal(secret) {
+    const id = secret_id(secret)
     const next = new Set(revealedKeys)
-    if (next.has(idx)) {
-      next.delete(idx)
+    if (next.has(id)) {
+      next.delete(id)
     } else {
-      next.add(idx)
+      next.add(id)
     }
     revealedKeys = next
   }
 
-  let copied_idx = $state(null)
+  let copied_id = $state(null)
 
-  async function copy_value(secret, idx) {
+  async function copy_value(secret) {
+      const id = secret_id(secret)
       await navigator.clipboard.writeText(String(secret.value))
-      copied_idx = idx
-      setTimeout(() => { if (copied_idx === idx) copied_idx = null }, 1500)
+      copied_id = id
+      setTimeout(() => { if (copied_id === id) copied_id = null }, 1500)
   }
 
   async function removeSecret(secret) {
@@ -136,20 +145,20 @@
       </tr>
     </thead>
     <tbody>
-      {#each filteredSecrets as secret, i}
+      {#each filteredSecrets as secret (secret_id(secret))}
         <tr>
           <td>{secret.app}</td>
           <td>{secret.env}</td>
           <td class="key">{secret.key}</td>
-          <td class="value" onclick={() => toggleReveal(i)} title="Click to toggle">
+          <td class="value" onclick={() => toggleReveal(secret)} title="Click to toggle">
             <code>
-              {revealedKeys.has(i) ? secret.value : maskValue(String(secret.value))}
+              {revealedKeys.has(secret_id(secret)) ? secret.value : maskValue(String(secret.value))}
             </code>
           </td>
           <td class="type">{secret.type}</td>
           <td class="actions">
-            <button class="copy" onclick={() => copy_value(secret, i)} title="Copy value">
-              {copied_idx === i ? '✓' : '⎘'}
+            <button class="copy" onclick={() => copy_value(secret)} title="Copy value">
+              {copied_id === secret_id(secret) ? '✓' : '⎘'}
             </button>
             <button class="delete" onclick={() => removeSecret(secret)} title="Remove">
               ×
@@ -272,7 +281,7 @@
     background: rgba(233, 69, 96, 0.15);
     border: 1px solid var(--accent);
     border-radius: 6px;
-    color: var(--accent);
+    color: var(--danger-text);
     margin-bottom: 12px;
   }
 

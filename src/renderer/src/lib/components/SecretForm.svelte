@@ -125,7 +125,7 @@
     background: rgba(233, 69, 96, 0.15);
     border: 1px solid var(--accent);
     border-radius: 6px;
-    color: var(--accent);
+    color: var(--danger-text);
     margin-bottom: 12px;
     font-size: 14px;
   }

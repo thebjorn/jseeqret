@@ -295,7 +295,7 @@
     }
 
     .update-msg.error {
-        color: var(--danger, #e94560);
+        color: var(--danger-text);
     }
 
     .logs-link {

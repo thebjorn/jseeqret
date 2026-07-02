@@ -56,10 +56,24 @@ export const ONBOARD_KEYS = {
     project: 'onboard.project',
     wizard: 'onboard.wizard',
     introduced: 'onboard.introduced',
+    received_ack: 'onboard.received_ack',
+}
+
+/**
+ * kv key recording the {file_id, reply_ts} pairs of the provisioning
+ * envelopes the TL sent to one invitee. Kept so the TL can delete their
+ * OWN messages once the user's `received` ack lands -- the receiver
+ * usually cannot (`cant_delete_message`).
+ */
+function _sent_key(email) {
+    return `onboard.sent.${email}`
 }
 
 /** Plaintext a `complete` ack's NaCl-Box proof must decrypt to. */
 const COMPLETE_PROOF = 'jseeqret-onboard-complete'
+
+/** Plaintext a `received` ack's NaCl-Box proof must decrypt to. */
+const RECEIVED_PROOF = 'jseeqret-onboard-received'
 
 export const DEFAULT_DOWNLOAD_URL =
     'https://github.com/thebjorn/jseeqret/releases/latest'
@@ -223,25 +237,49 @@ export async function onboard_invite(storage, client, opts) {
 
 /**
  * Step 8-9: poll for introduction envelopes. Matching, still-open rows are
- * promoted to `introduced` with the fingerprint and pubkey captured locally
- * (so approval survives Slack retention), then the introduction thread is
- * deleted. Introductions with no matching invite are returned as
- * `expected: false` events (surfaced as a warning) but never persisted.
+ * promoted to `introduced` with the fingerprint, pubkey, and display name
+ * captured locally (so approval survives Slack retention), then the
+ * introduction thread is deleted. Introductions with no matching invite
+ * are returned as `expected: false` events (surfaced as a warning) but
+ * never persisted.
  *
- * @returns {Promise<{events: Array<object>, highest_ts: string}>}
+ * Also consumes `received` acks: once the provisioned user proves (via a
+ * NaCl-Box proof against the pubkey captured at introduction time) that
+ * the imports landed, the TL deletes their OWN provisioning envelopes --
+ * forward-secrecy cleanup the receiver usually cannot perform. Requires
+ * `receiver_private_key` (the TL's key) to verify the proof; without it,
+ * acks are left untouched for a later poll.
+ *
+ * Every event carries `kind` ('introduction' | 'received') so callers can
+ * warn on unexpected introductions without misreporting acks.
+ *
+ * @returns {Promise<{events: Array<object>, highest_ts: string, stale_ts: string|null}>}
  */
 export async function onboard_poll(storage, client, opts) {
-    const { channel_id, self_user_id, oldest_ts = '0' } = opts
+    const {
+        channel_id, self_user_id, oldest_ts = '0',
+        receiver_private_key = null,
+    } = opts
     const events = []
     let highest_ts = oldest_ts
+    const stats = {}
 
     for await (const env of poll_envelopes({
-        client, channel_id, self_user_id, oldest_ts,
+        client, channel_id, self_user_id, oldest_ts, stats,
     })) {
         if (Number(env.file_ts) > Number(highest_ts)) highest_ts = env.file_ts
+
+        if (env.kind === MESSAGE_KINDS.received) {
+            const ev = await _handle_received_ack(storage, client, {
+                channel_id, env, receiver_private_key,
+            })
+            if (ev) events.push(ev)
+            continue
+        }
+
         if (env.kind !== MESSAGE_KINDS.introduction) continue
 
-        const { email, username, pubkey } = env.payload
+        const { email, username, name, pubkey } = env.payload
         const fp = pubkey_fingerprint(pubkey)
         const row = await storage.onboarding_get(email)
         const open = row && (
@@ -254,6 +292,9 @@ export async function onboard_poll(storage, client, opts) {
             // loses the fingerprint/pubkey we need to approve.
             await storage.onboarding_update(email, {
                 username: username || row.username,
+                // The TL's invite-provided display name wins; fall back
+                // to the name the user chose at vault creation.
+                name: row.name || name || null,
                 slack_user_id: env.sender_user_id,
                 pubkey,
                 fingerprint: fp,
@@ -265,16 +306,72 @@ export async function onboard_poll(storage, client, opts) {
                     file_id: env.file_id, reply_ts: env.reply_ts,
                 })
             } catch { /* best-effort; row is already captured */ }
-            events.push({ email, fingerprint: fp, expected: true })
+            events.push({
+                kind: 'introduction', email, fingerprint: fp, expected: true,
+            })
         } else {
             events.push({
-                email, fingerprint: fp, expected: false,
+                kind: 'introduction', email, fingerprint: fp, expected: false,
                 slack_user_id: env.sender_user_id,
             })
         }
     }
 
-    return { events, highest_ts }
+    return { events, highest_ts, stale_ts: stats.stale_ts || null }
+}
+
+/**
+ * Verify and act on a `received` ack. The proof must NaCl-Box-decrypt
+ * with the pubkey captured for that invitee at introduction time, so a
+ * forged ack cannot trick the TL into deleting provisioning envelopes
+ * before the real user imported them. On success the TL's recorded
+ * provisioning sends AND the ack thread are deleted (all TL-deletable:
+ * the provisioning envelopes are the TL's own; the ack is best-effort).
+ *
+ * @returns {Promise<object|null>} the event to surface, or null when the
+ *          ack cannot be verified yet (left in the channel for a retry)
+ */
+async function _handle_received_ack(storage, client, opts) {
+    const { channel_id, env, receiver_private_key } = opts
+    const email = env.payload?.email
+    if (!receiver_private_key || !email) return null
+
+    const row = await storage.onboarding_get(email)
+    if (!row || !row.pubkey) {
+        return { kind: 'received', email, expected: false }
+    }
+
+    let ok = false
+    try {
+        const txt = asymmetric_decrypt(
+            env.payload.proof, receiver_private_key, decode_key(row.pubkey),
+        )
+        ok = txt === RECEIVED_PROOF
+    } catch { /* not a valid proof */ }
+    if (!ok) {
+        return { kind: 'received', email, expected: false }
+    }
+
+    const sent = await slack_config_get(storage, _sent_key(email)) || []
+    for (const s of sent) {
+        try {
+            await delete_thread({
+                client, channel_id,
+                file_id: s.file_id, reply_ts: s.reply_ts,
+            })
+        } catch (e) {
+            trace(`sender cleanup of ${s.file_id} failed: ${e.message}`)
+        }
+    }
+    await slack_config_delete(storage, _sent_key(email))
+    try {
+        await delete_thread({
+            client, channel_id,
+            file_id: env.file_id, reply_ts: env.reply_ts,
+        })
+    } catch { /* the ack is the user's message; best-effort */ }
+
+    return { kind: 'received', email, expected: true, cleaned: sent.length }
 }
 
 /**
@@ -349,12 +446,27 @@ export async function onboard_approve(storage, client, opts) {
     })
     await storage.onboarding_set_state(email, ONBOARDING_STATES.approved)
 
+    // Record every envelope sent TO THE NEW USER so the TL can delete
+    // their own messages after the user's `received` ack -- the receiver
+    // usually cannot (cant_delete_message). Broadcasts to existing
+    // teammates are NOT recorded: those are consumed by the teammates'
+    // introduction inbox, not by the new user. A resumed approve re-sends,
+    // so start from what an earlier partial run already recorded.
+    const sent_envelopes =
+        await slack_config_get(storage, _sent_key(email)) || []
+    // Persist after every send: a mid-sequence failure must not leave an
+    // untracked envelope the cleanup can never reach.
+    const record = async (r) => {
+        sent_envelopes.push({ file_id: r.file_id, reply_ts: r.reply_ts })
+        await slack_config_set(storage, _sent_key(email), sent_envelopes)
+    }
+
     // Steps 12-13: send the full teammate list to the new user.
     const all_users = await storage.fetch_users()
     const teammates = all_users.filter(u => u.username !== new_user.username)
-    await _send_user_list(client, channel_id, row.slack_user_id, {
+    await record(await _send_user_list(client, channel_id, row.slack_user_id, {
         self, sender_private_key, receiver: new_user, users: teammates,
-    })
+    }))
     await storage.onboarding_set_state(email, ONBOARDING_STATES.provisioned)
 
     // Resolved question 1: broadcast the newcomer to existing teammates so
@@ -380,14 +492,14 @@ export async function onboard_approve(storage, client, opts) {
     })
     const batch = JSON.parse(exporter.dumps(secrets))
     batch.from_pubkey = self.pubkey
-    await send_payload({
+    await record(await send_payload({
         client, channel_id, recipient_slack_user_id: row.slack_user_id,
         kind: MESSAGE_KINDS.secret_batch, payload: batch,
-    })
+    }))
 
     // Step 16: completion ack, carrying a NaCl-Box proof of TL authorship
     // so a forged plaintext `complete` cannot strand the new user.
-    await send_payload({
+    await record(await send_payload({
         client, channel_id, recipient_slack_user_id: row.slack_user_id,
         kind: MESSAGE_KINDS.complete,
         payload: {
@@ -398,7 +510,7 @@ export async function onboard_approve(storage, client, opts) {
                 COMPLETE_PROOF, sender_private_key, new_user.public_key,
             ),
         },
-    })
+    }))
     await storage.onboarding_set_state(email, ONBOARDING_STATES.complete)
 
     return {
@@ -482,6 +594,10 @@ export async function onboard_join(storage, client, opts) {
         payload: {
             email: email || self.email,
             username: self.username,
+            // The human display name, when the user set one at vault
+            // creation. The TL's invite-provided name still wins on the
+            // TL side (onboard_poll).
+            name: self.name || null,
             pubkey: self.pubkey,
             fingerprint: compute_fingerprint(self),
         },
@@ -612,7 +728,7 @@ function _verify_complete(payload, receiver_private_key, trusted_pubkey) {
  * among genuine TL envelopes cannot deny provisioning. Untrusted envelopes
  * are NOT deleted.
  *
- * @returns {Promise<{imported_users: number, imported_secrets: number, complete: boolean, highest_ts: string, warnings: Array<object>}>}
+ * @returns {Promise<{imported_users: number, imported_secrets: number, complete: boolean, highest_ts: string, stale_ts: string|null, warnings: Array<object>}>}
  */
 export async function onboard_provision_poll(storage, client, opts) {
     const {
@@ -625,9 +741,10 @@ export async function onboard_provision_poll(storage, client, opts) {
     let complete = false
     let highest_ts = oldest_ts
     const warnings = []
+    const stats = {}
 
     for await (const env of poll_envelopes({
-        client, channel_id, self_user_id, oldest_ts,
+        client, channel_id, self_user_id, oldest_ts, stats,
     })) {
         if (Number(env.file_ts) > Number(highest_ts)) highest_ts = env.file_ts
 
@@ -671,7 +788,220 @@ export async function onboard_provision_poll(storage, client, opts) {
         }
     }
 
-    return { imported_users, imported_secrets, complete, highest_ts, warnings }
+    return {
+        imported_users, imported_secrets, complete, highest_ts,
+        stale_ts: stats.stale_ts || null, warnings,
+    }
+}
+
+/**
+ * Tell the TL the provisioning imports landed, so the TL can delete
+ * their own provisioning envelopes (sender-side forward-secrecy cleanup;
+ * the receiver's own delete is best-effort and usually refused). The ack
+ * carries a NaCl-Box proof made with the user's private key against the
+ * OOB-anchored TL pubkey, so a forged ack cannot trigger a premature
+ * cleanup. Idempotent per vault (kv marker); `force` re-sends.
+ *
+ * @param {object} opts
+ * @param {string} opts.channel_id
+ * @param {Uint8Array} opts.private_key - the user's NaCl private key
+ * @param {string} [opts.email] - the invited email (defaults to the one
+ *        recorded when the introduction was sent)
+ * @param {boolean} [opts.force]
+ * @returns {Promise<{sent: boolean}>}
+ */
+export async function onboard_send_received_ack(storage, client, opts) {
+    const { channel_id, private_key, email = null, force = false } = opts
+
+    if (!force) {
+        const already = await slack_config_get(storage, ONBOARD_KEYS.received_ack)
+        if (already) return { sent: false }
+    }
+
+    const trust = await get_tl_trust(storage)
+    if (!trust.tl_pubkey || !trust.tl_user_id) {
+        throw new Error('no team-lead trust on file; cannot ack provisioning.')
+    }
+
+    const introduced = await slack_config_get(storage, ONBOARD_KEYS.introduced)
+    const ack_email = email || introduced?.email
+    if (!ack_email) {
+        throw new Error('no invited email on record; cannot ack provisioning.')
+    }
+
+    await send_payload({
+        client, channel_id, recipient_slack_user_id: trust.tl_user_id,
+        kind: MESSAGE_KINDS.received,
+        payload: {
+            email: ack_email,
+            proof: asymmetric_encrypt(
+                RECEIVED_PROOF, private_key, decode_key(trust.tl_pubkey),
+            ),
+        },
+    })
+    await slack_config_set(storage, ONBOARD_KEYS.received_ack, {
+        email: ack_email,
+        at: _now(),
+    })
+    return { sent: true }
+}
+
+// ---- Introductions inbox (existing-teammate side) --------------------------
+
+/**
+ * Poll for `user_list` envelopes addressed to me WITHOUT importing them.
+ * These are how newcomers reach existing teammates: at approval the TL
+ * relays the newcomer's record to every teammate. Import stays a HUMAN
+ * decision -- `accept_introduction` below -- never a silent side effect.
+ *
+ * Each pending entry is decrypted for display:
+ *   - `vouched: true`  -- the self-reported sender key IS the OOB-anchored
+ *     TL pubkey and the Box opens with it: the list arrives on the team
+ *     lead's authority and one click may accept it.
+ *   - `vouched: false` -- decrypted with the self-reported sender key for
+ *     display only. Accepting requires the human to verify the sender's
+ *     fingerprint out-of-band (re-validated in accept_introduction).
+ *
+ * Lists whose users are all already in the vault are skipped (nothing to
+ * accept); envelopes not decryptable by us are ignored.
+ *
+ * @param {object} opts
+ * @param {string} opts.channel_id
+ * @param {string} opts.self_user_id
+ * @param {Uint8Array} opts.receiver_private_key
+ * @param {string|null} [opts.trusted_pubkey]
+ * @param {string} [opts.oldest_ts]
+ * @returns {Promise<Array<{file_id: string, reply_ts: string, file_ts: string,
+ *          sender_user_id: string, from_pubkey: string, fingerprint: string,
+ *          vouched: boolean, users: Array<object>, payload: object}>>}
+ */
+export async function inbox_introductions(storage, client, opts) {
+    const {
+        channel_id, self_user_id, receiver_private_key,
+        trusted_pubkey = null, oldest_ts = '0',
+    } = opts
+    const pending = []
+
+    for await (const env of poll_envelopes({
+        client, channel_id, self_user_id, oldest_ts,
+    })) {
+        if (env.kind !== MESSAGE_KINDS.user_list) continue
+        const from_pubkey = env.payload?.from_pubkey
+        if (!from_pubkey) continue
+
+        const vouched = !!trusted_pubkey
+            && pubkeys_equal(from_pubkey, trusted_pubkey)
+
+        let users
+        try {
+            const sender = new User(
+                'sender', '', vouched ? trusted_pubkey : from_pubkey,
+            )
+            const serializer = new UserListSerializer({
+                sender, receiver_private_key,
+            })
+            users = serializer.load(JSON.stringify(env.payload))
+        } catch {
+            trace(`inbox: user_list ${env.file_id} not decryptable, skipped`)
+            continue
+        }
+
+        const fresh = []
+        for (const u of users) {
+            const existing = await storage.fetch_user(u.username)
+            if (!existing) fresh.push(u.toJSON())
+        }
+        if (fresh.length === 0) continue
+
+        pending.push({
+            file_id: env.file_id,
+            reply_ts: env.reply_ts,
+            file_ts: env.file_ts,
+            sender_user_id: env.sender_user_id,
+            from_pubkey,
+            fingerprint: pubkey_fingerprint(from_pubkey),
+            vouched,
+            users: fresh,
+            payload: env.payload,
+        })
+    }
+
+    return pending
+}
+
+/**
+ * Import a pending introduction after the human accepted it. The gate is
+ * enforced HERE, not in the GUI:
+ *   - vouched path: the payload's sender key must equal the OOB-anchored
+ *     TL pubkey, and the Box must open with it (TL authority).
+ *   - unvouched path: requires `verified === true` plus a typed-back
+ *     fingerprint matching the sender key -- the same out-of-band
+ *     ceremony `slack link` and the approve dialog use.
+ *
+ * Idempotent (existing usernames are skipped). The envelope thread is
+ * deleted best-effort -- we usually cannot delete the sender's messages.
+ *
+ * @param {object} opts
+ * @param {string} opts.channel_id
+ * @param {object} opts.payload - the user_list envelope payload
+ * @param {string} [opts.file_id]
+ * @param {string} [opts.reply_ts]
+ * @param {Uint8Array} opts.receiver_private_key
+ * @param {string|null} [opts.trusted_pubkey]
+ * @param {boolean} [opts.verified] - OOB verification flag (unvouched path)
+ * @param {string} [opts.fingerprint] - typed-back sender fingerprint
+ * @returns {Promise<Array<import('./models/user.js').User>>} imported users
+ */
+export async function accept_introduction(storage, client, opts) {
+    const {
+        channel_id, payload, file_id = null, reply_ts = null,
+        receiver_private_key, trusted_pubkey = null,
+        verified = false, fingerprint = null,
+    } = opts
+
+    const from_pubkey = payload?.from_pubkey
+    if (!from_pubkey) {
+        throw new Error('introduction payload carries no sender key.')
+    }
+
+    const vouched = !!trusted_pubkey
+        && pubkeys_equal(from_pubkey, trusted_pubkey)
+    if (!vouched) {
+        if (verified !== true) {
+            throw new Error(
+                'refusing to accept: the sender is not your verified team'
+                + ' lead and the fingerprint was not verified out-of-band.'
+            )
+        }
+        const fp = pubkey_fingerprint(from_pubkey)
+        if (!fingerprint || fingerprint !== fp) {
+            throw new Error(
+                'refusing to accept: typed fingerprint does not match the'
+                + ` sender key (${fp}).`
+            )
+        }
+    }
+
+    const sender = new User(
+        'sender', '', vouched ? trusted_pubkey : from_pubkey,
+    )
+    const serializer = new UserListSerializer({ sender, receiver_private_key })
+    const users = serializer.load(JSON.stringify(payload))
+
+    const imported = []
+    for (const user of users) {
+        const existing = await storage.fetch_user(user.username)
+        if (existing) continue
+        await storage.add_user(user)
+        imported.push(user)
+    }
+
+    if (file_id && reply_ts) {
+        try {
+            await delete_thread({ client, channel_id, file_id, reply_ts })
+        } catch { /* usually not our message; best-effort */ }
+    }
+    return imported
 }
 
 /**

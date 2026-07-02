@@ -64,17 +64,23 @@ stall in the waiting step), and the packaged app writes no logs at all.
 
 ### Open follow-ups (post v2.3.1, flow verified end-to-end 2026-07-02)
 
-- [ ] Sender-side envelope cleanup: receivers who are not workspace
-      admins cannot delete the TL's provisioning messages
-      (`cant_delete_message`), so forward-secrecy cleanup should move to
-      the sender after the `complete` ack (receiver-side delete is now
-      best-effort/traced only).
-- [ ] Old broken envelopes (pre-fix detached-mention pairs) linger in
-      #seeqrets and get re-scanned by every poll from oldest=0 — clean
-      the channel and/or consider a smarter poll cursor.
-- [ ] Consider a `slack doctor`-style transport self-test command based
-      on the send-to-self + verify-thread + delete pattern used to
-      verify the share-ts fix.
+All three implemented 2026-07-02 as part of the GUI round (see
+tasks/todo-gui.md, section F):
+
+- [x] Sender-side envelope cleanup: `onboard_approve` records its sends
+      to the new user (`onboard.sent.<email>` kv); a new `received`
+      envelope kind (NaCl-Box proof against the pubkey captured at
+      introduction) lets `onboard_poll` verify the imports landed and
+      delete the TL's OWN provisioning messages. Receiver-side delete
+      stays best-effort/traced only.
+- [x] Smarter poll cursor: `poll_inbox` reports the newest *stale*
+      (>15 min, unmatched) skipped message; the TL cursor and the new
+      user-side cursor (`slack.onboard_user_last_seen_ts`, advanced only
+      on warning-free sweeps) skip re-scanning dead noise without ever
+      leaping over an envelope whose mention is still settling.
+- [x] Transport self-test: `transport_selftest()` (send-to-self →
+      poller match → delete_thread), surfaced as `slack doctor
+      --transport` and a "Test transport" button on the GUI Slack card.
 
 ### Verification
 
