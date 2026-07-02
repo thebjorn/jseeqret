@@ -36,10 +36,12 @@ import {
 } from '../core/slack/session.js'
 import { bind_slack_handle, compute_fingerprint } from '../core/slack/identity.js'
 import {
-    onboard_invite, onboard_poll, onboard_approve, onboard_join,
+    onboard_invite, onboard_poll, onboard_approve, onboard_introduce,
     onboard_receive_invite, onboard_provision_poll,
     expire_stale_onboarding, set_tl_trust, get_tl_trust,
+    get_wizard_state, set_wizard_state,
 } from '../core/onboarding.js'
+import { log_info, log_error, get_log_dir } from './logger.js'
 
 /**
  * Resolve vault dir from registry default first, falling back to
@@ -93,12 +95,26 @@ export async function ensure_active_vault_migrated() {
     try {
         await ensure_migrated(get_active_vault_dir())
     } catch (e) {
-        console.error('vault migration on startup failed:', e.message)
+        log_error('vault migration on startup failed:', e)
     }
 }
 
 export function register_ipc_handlers() {
-    ipcMain.handle('vault:status', () => {
+    // Every handler registers through this wrapper so any failure lands
+    // in the log file with its channel name before propagating to the
+    // renderer -- a packaged app has no console to read.
+    function handle(channel, fn) {
+        ipcMain.handle(channel, async (event, ...args) => {
+            try {
+                return await fn(event, ...args)
+            } catch (e) {
+                log_error(`ipc ${channel}:`, e)
+                throw e
+            }
+        })
+    }
+
+    handle('vault:status', async () => {
         let vault_dir
         let initialized = false
         try {
@@ -108,8 +124,20 @@ export function register_ipc_handlers() {
         } catch {
             vault_dir = null
         }
+        // The first-run wizard cannot key off `initialized` alone -- it
+        // flips true the moment the wizard's create step finishes, which
+        // would unmount the wizard before Slack onboarding runs. The
+        // wizard sets this flag at creation and clears it on finish/skip.
+        let onboarding_active = false
+        if (initialized) {
+            try {
+                const state = await get_wizard_state(get_storage())
+                onboarding_active = state === 'active'
+            } catch { /* pre-kv vault or unreadable key: not onboarding */ }
+        }
         return {
             initialized,
+            onboarding_active,
             vaultDir: initialized ? vault_dir : null,
             currentUser: current_user(),
             version: pkg_version,
@@ -117,14 +145,14 @@ export function register_ipc_handlers() {
         }
     })
 
-    ipcMain.handle('secrets:list', async (_event, filter = '*') => {
+    handle('secrets:list', async (_event, filter = '*') => {
         const storage = get_storage()
         const fspec = new FilterSpec(filter)
         const secrets = await storage.fetch_secrets(fspec.to_filter_dict())
         return secrets.map(s => s.to_plaintext_dict())
     })
 
-    ipcMain.handle('secrets:get', async (_event, filter) => {
+    handle('secrets:get', async (_event, filter) => {
         const storage = get_storage()
         const fspec = new FilterSpec(filter)
         const secrets = await storage.fetch_secrets(fspec.to_filter_dict())
@@ -133,7 +161,7 @@ export function register_ipc_handlers() {
         return secrets[0].get_value()
     })
 
-    ipcMain.handle('secrets:add', async (_event, { app, env, key, value, type }) => {
+    handle('secrets:add', async (_event, { app, env, key, value, type }) => {
         const storage = get_storage()
         const vault_dir = get_active_vault_dir()
         const secret = new Secret({ app, env, key, plaintext_value: value, type: type || 'str', vault_dir })
@@ -141,7 +169,7 @@ export function register_ipc_handlers() {
         return { ok: true }
     })
 
-    ipcMain.handle('secrets:update', async (_event, { app, env, key, value }) => {
+    handle('secrets:update', async (_event, { app, env, key, value }) => {
         const storage = get_storage()
         const fspec = new FilterSpec(`${app}:${env}:${key}`)
         const secrets = await storage.fetch_secrets(fspec.to_filter_dict())
@@ -151,27 +179,27 @@ export function register_ipc_handlers() {
         return { ok: true }
     })
 
-    ipcMain.handle('secrets:remove', async (_event, filter) => {
+    handle('secrets:remove', async (_event, filter) => {
         const storage = get_storage()
         const fspec = new FilterSpec(filter)
         await storage.remove_secrets(fspec.to_filter_dict())
         return { ok: true }
     })
 
-    ipcMain.handle('users:list', async () => {
+    handle('users:list', async () => {
         const storage = get_storage()
         const users = await storage.fetch_users()
         return users.map(u => u.toJSON())
     })
 
-    ipcMain.handle('users:add', async (_event, { username, email, pubkey }) => {
+    handle('users:add', async (_event, { username, email, pubkey, name }) => {
         const storage = get_storage()
-        const user = new User(username, email, pubkey)
+        const user = new User(username, email, pubkey, { name: name || null })
         await storage.add_user(user)
         return { ok: true }
     })
 
-    ipcMain.handle('vault:keys', () => {
+    handle('vault:keys', () => {
         const vault_dir = get_active_vault_dir()
         return {
             privateKey: load_private_key_str(vault_dir),
@@ -179,7 +207,7 @@ export function register_ipc_handlers() {
         }
     })
 
-    ipcMain.handle('secrets:export', async (_event, { to, filter, serializer, system }) => {
+    handle('secrets:export', async (_event, { to, filter, serializer, system }) => {
         const storage = get_storage()
         const admin = await storage.fetch_admin()
         const vault_dir = get_active_vault_dir()
@@ -208,7 +236,7 @@ export function register_ipc_handlers() {
         return { output, count: secrets.length }
     })
 
-    ipcMain.handle('secrets:import', async (_event, { from_user, serializer, content }) => {
+    handle('secrets:import', async (_event, { from_user, serializer, content }) => {
         const storage = get_storage()
         const vault_dir = get_active_vault_dir()
         const receiver_private_key = decode_key(load_private_key_str(vault_dir))
@@ -242,7 +270,7 @@ export function register_ipc_handlers() {
         return { count }
     })
 
-    ipcMain.handle('vault:introduction', async () => {
+    handle('vault:introduction', async () => {
         const storage = get_storage()
         const user = await fetch_self(storage)
 
@@ -261,7 +289,7 @@ export function register_ipc_handlers() {
         }
     })
 
-    ipcMain.handle('serializers:list', () => {
+    handle('serializers:list', () => {
         return list_serializers().map(cls => ({
             tag: cls.tag,
             description: cls.description,
@@ -270,7 +298,7 @@ export function register_ipc_handlers() {
 
     // -- Vault registry ------------------------------------------------
 
-    ipcMain.handle('vaults:list', () => {
+    handle('vaults:list', () => {
         const vaults = registry_list().map(v => ({
             ...v,
             initialized: fs.existsSync(path.join(v.path, 'seeqrets.db')),
@@ -299,19 +327,19 @@ export function register_ipc_handlers() {
         return vaults
     })
 
-    ipcMain.handle('vaults:add', (_event, { name, vault_path }) => {
+    handle('vaults:add', (_event, { name, vault_path }) => {
         registry_add(name, vault_path)
         return { ok: true }
     })
 
-    ipcMain.handle('vaults:remove', (_event, { name }) => {
+    handle('vaults:remove', (_event, { name }) => {
         if (!registry_remove(name)) {
             throw new Error(`Vault "${name}" is not registered`)
         }
         return { ok: true }
     })
 
-    ipcMain.handle('vaults:switch', async (_event, { name, vault_path }) => {
+    handle('vaults:switch', async (_event, { name, vault_path }) => {
         // If switching to an env-var vault not yet in registry, register it
         if (vault_path) {
             registry_add(name, vault_path)
@@ -323,7 +351,7 @@ export function register_ipc_handlers() {
         return { ok: true }
     })
 
-    ipcMain.handle('vaults:create', async () => {
+    handle('vaults:create', async (_event, opts = {}) => {
         const win = BrowserWindow.getFocusedWindow()
         const result = await dialog.showOpenDialog(win, {
             title: 'Choose directory for new vault',
@@ -359,6 +387,15 @@ export function register_ipc_handlers() {
         registry_add(vault_name, vault_dir)
         registry_use(vault_name)
 
+        // A vault created from the first-run wizard keeps onboarding
+        // marked in-progress so the wizard survives `initialized`
+        // flipping true (see vault:status).
+        if (opts && opts.onboarding) {
+            await set_wizard_state(get_storage(), 'active')
+        }
+        log_info(`vaults:create ${vault_dir}`
+            + ` (onboarding=${!!(opts && opts.onboarding)})`)
+
         return {
             canceled: false,
             name: vault_name,
@@ -366,17 +403,17 @@ export function register_ipc_handlers() {
         }
     })
 
-    ipcMain.handle('vaults:default', () => {
+    handle('vaults:default', () => {
         return registry_default()
     })
 
     // -- Slack session (Phase 4) ---------------------------------------
 
-    ipcMain.handle('slack:status', async () => {
+    handle('slack:status', async () => {
         return slack_session_status(get_storage())
     })
 
-    ipcMain.handle('slack:login', async () => {
+    handle('slack:login', async () => {
         const storage = get_storage()
         // The loopback OAuth flow runs in the main process; the channel
         // picker is surfaced to the renderer as return data.
@@ -385,12 +422,12 @@ export function register_ipc_handlers() {
         })
     })
 
-    ipcMain.handle('slack:set-channel', async (_event, { channel_id, channel_name }) => {
+    handle('slack:set-channel', async (_event, { channel_id, channel_name }) => {
         await slack_set_channel(get_storage(), channel_id, channel_name)
         return { ok: true }
     })
 
-    ipcMain.handle('slack:doctor', async () => {
+    handle('slack:doctor', async () => {
         const status = await slack_session_status(get_storage())
         return { ready: status.ready, problems: status.problems }
     })
@@ -398,18 +435,18 @@ export function register_ipc_handlers() {
     // GUI counterpart to `slack doctor --accept`: records the operator's
     // SSO + hardware-MFA attestation. The renderer obtains an explicit
     // confirmation before invoking. Returns the refreshed status.
-    ipcMain.handle('slack:attest', async () => {
+    handle('slack:attest', async () => {
         const storage = get_storage()
         await slack_attest_mfa(storage)
         return slack_session_status(storage)
     })
 
-    ipcMain.handle('slack:logout', async () => {
+    handle('slack:logout', async () => {
         await slack_config_clear_all(get_storage())
         return { ok: true }
     })
 
-    ipcMain.handle('slack:link', async (_event, { username, handle, fingerprint }) => {
+    handle('slack:link', async (_event, { username, handle, fingerprint }) => {
         const storage = get_storage()
         const user = await storage.fetch_user(username)
         if (!user) throw new Error(`Unknown user: ${username}`)
@@ -444,22 +481,23 @@ export function register_ipc_handlers() {
         return { storage, snap, client }
     }
 
-    ipcMain.handle('onboard:invite', async (_event, { email, project, name }) => {
+    handle('onboard:invite', async (_event, { email, project, name }) => {
         const { storage, snap, client } = await slack_ctx()
         const self = await get_self_or_throw(storage)
         const r = await onboard_invite(storage, client, {
             email, project, name: name || null,
             channel_id: snap.channel_id, self,
         })
+        log_info(`onboard:invite sent to ${email} (slack ${r.slack_user_id})`)
         return { ok: true, slack_user_id: r.slack_user_id, fingerprint: compute_fingerprint(self) }
     })
 
-    ipcMain.handle('onboard:list', async () => {
+    handle('onboard:list', async () => {
         await ensure_migrated(get_active_vault_dir())
         return get_storage().onboarding_list()
     })
 
-    ipcMain.handle('onboard:poll', async () => {
+    handle('onboard:poll', async () => {
         const { storage, snap, client } = await slack_ctx()
         await expire_stale_onboarding(storage)
         const oldest = await slack_config_get(storage, SLACK_KEYS.onboard_last_seen_ts) || '0'
@@ -469,11 +507,15 @@ export function register_ipc_handlers() {
         if (r.highest_ts !== oldest) {
             await slack_config_set(storage, SLACK_KEYS.onboard_last_seen_ts, r.highest_ts)
         }
+        for (const ev of r.events) {
+            log_info(`onboard:poll introduction from ${ev.email}`
+                + ` expected=${ev.expected}`)
+        }
         const list = await storage.onboarding_list()
         return { events: r.events, list }
     })
 
-    ipcMain.handle('onboard:approve', async (_event, { email, verified, fingerprint }) => {
+    handle('onboard:approve', async (_event, { email, verified, fingerprint }) => {
         const { storage, snap, client } = await slack_ctx()
         const self = await get_self_or_throw(storage)
         const sender_private_key = decode_key(load_private_key_str(get_active_vault_dir()))
@@ -481,42 +523,90 @@ export function register_ipc_handlers() {
             email, verified, fingerprint,
             channel_id: snap.channel_id, self, sender_private_key,
         })
+        log_info(`onboard:approve ${email}: ${summary.users_sent} users,`
+            + ` ${summary.secrets_sent} secrets, ${summary.broadcasts} broadcasts`)
         return { ok: true, ...summary }
     })
 
     // -- Onboarding: new-user side (Phase 6) ---------------------------
 
-    ipcMain.handle('onboard:receive-invite', async () => {
+    handle('onboard:receive-invite', async () => {
         const { storage, snap, client } = await slack_ctx()
         return onboard_receive_invite(storage, client, {
             channel_id: snap.channel_id, self_user_id: snap.user_id,
         })
     })
 
-    ipcMain.handle('onboard:join', async (_event, opts) => {
+    // Sends the introduction WITHOUT anchoring any trust: it only
+    // publishes the user's own pubkey/fingerprint. Idempotent per invited
+    // email so the wizard can call it on every refresh; `force` re-sends
+    // (recovery). The voice-call gate stays on onboard:join below.
+    handle('onboard:introduce', async (_event, { tl_slack_user_id, email, force }) => {
         const { storage, snap, client } = await slack_ctx()
         const self = await get_self_or_throw(storage)
-        const { tl_slack_user_id, tl_pubkey, tl_fingerprint, project, email } = opts
+        const r = await onboard_introduce(storage, client, {
+            channel_id: snap.channel_id, self, tl_slack_user_id,
+            email, force: !!force,
+        })
+        if (r.sent) log_info(`onboard:introduce sent as ${r.email}`)
+        return { ok: true, sent: r.sent, fingerprint: compute_fingerprint(self) }
+    })
+
+    handle('onboard:join', async (_event, opts) => {
+        const { storage, snap, client } = await slack_ctx()
+        const self = await get_self_or_throw(storage)
+        const { tl_slack_user_id, tl_pubkey, tl_fingerprint, project, email, force } = opts
         await set_tl_trust(storage, {
             user_id: tl_slack_user_id, pubkey: tl_pubkey,
             fingerprint: tl_fingerprint, project,
         })
-        await onboard_join(storage, client, {
-            channel_id: snap.channel_id, self, tl_slack_user_id, email,
+        // Guarded: if the wizard already auto-introduced under this email,
+        // confirming the verification only anchors trust (no duplicate
+        // introduction on Slack). Recovery passes force to re-send.
+        const r = await onboard_introduce(storage, client, {
+            channel_id: snap.channel_id, self, tl_slack_user_id,
+            email, force: !!force,
         })
-        return { ok: true, fingerprint: compute_fingerprint(self) }
+        log_info(r.sent
+            ? `onboard:join introduction sent as ${r.email}`
+            : `onboard:join trust anchored (already introduced as ${r.email})`)
+        return { ok: true, sent: r.sent, fingerprint: compute_fingerprint(self) }
     })
 
-    ipcMain.handle('onboard:provision-poll', async () => {
+    handle('onboard:provision-poll', async () => {
         const { storage, snap, client } = await slack_ctx()
         const trust = await get_tl_trust(storage)
         if (!trust.tl_pubkey) {
             throw new Error('No team-lead trust on file yet. Run join first.')
         }
         const receiver_private_key = decode_key(load_private_key_str(get_active_vault_dir()))
-        return onboard_provision_poll(storage, client, {
+        const r = await onboard_provision_poll(storage, client, {
             channel_id: snap.channel_id, self_user_id: snap.user_id,
             receiver_private_key, trusted_pubkey: trust.tl_pubkey,
         })
+        if (r.imported_users || r.imported_secrets || r.complete) {
+            log_info(`onboard:provision-poll imported`
+                + ` ${r.imported_users} users, ${r.imported_secrets} secrets,`
+                + ` complete=${r.complete}`)
+        }
+        for (const w of r.warnings) {
+            log_error(`onboard:provision-poll ${w.kind}: ${w.error}`)
+        }
+        return r
+    })
+
+    // Clears the first-run wizard flag -- called when the wizard's done
+    // step is dismissed or the user explicitly skips onboarding.
+    handle('onboard:wizard-done', async () => {
+        await ensure_migrated(get_active_vault_dir())
+        await set_wizard_state(get_storage(), null)
+        log_info('onboard:wizard-done')
+        return { ok: true }
+    })
+
+    handle('app:open-logs', () => {
+        const dir = get_log_dir()
+        if (dir) shell.openPath(dir)
+        return { ok: true, dir }
     })
 }

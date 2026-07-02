@@ -193,6 +193,7 @@ export class SqliteStorage {
      */
     _user_from_row(r) {
         return new User(r.username, r.email, r.pubkey, {
+            name: r.name,
             slack_handle: r.slack_handle,
             slack_key_fingerprint: r.slack_key_fingerprint,
             slack_verified_at: r.slack_verified_at,
@@ -202,8 +203,9 @@ export class SqliteStorage {
     async add_user(user) {
         return this._with_db((db) => {
             db.run(
-                'INSERT INTO users (username, email, pubkey) VALUES (?, ?, ?)',
-                [user.username, user.email, user.pubkey]
+                'INSERT INTO users (username, email, pubkey, name)'
+                + ' VALUES (?, ?, ?, ?)',
+                [user.username, user.email, user.pubkey, user.name ?? null]
             )
         }, true)
     }
@@ -218,7 +220,7 @@ export class SqliteStorage {
         return this._with_db((db) => {
             const rows = this._query_rows(
                 db,
-                `SELECT username, email, pubkey,
+                `SELECT username, email, pubkey, name,
                         slack_handle, slack_key_fingerprint, slack_verified_at
                  FROM users WHERE username = ?`,
                 [username]
@@ -230,7 +232,7 @@ export class SqliteStorage {
     async fetch_users(filters = {}) {
         const rows = await this.execute_sql(
             [
-                `SELECT username, email, pubkey,
+                `SELECT username, email, pubkey, name,
                         slack_handle, slack_key_fingerprint, slack_verified_at
                  FROM users`,
                 ' ORDER BY username',
@@ -244,7 +246,7 @@ export class SqliteStorage {
         return this._with_db((db) => {
             const rows = this._query_rows(
                 db,
-                `SELECT username, email, pubkey,
+                `SELECT username, email, pubkey, name,
                         slack_handle, slack_key_fingerprint, slack_verified_at
                  FROM users WHERE id = 1`
             )
@@ -426,6 +428,7 @@ export class SqliteStorage {
     async onboarding_create({
         email,
         username = null,
+        name = null,
         slack_handle = null,
         slack_user_id = null,
         project_filter = null,
@@ -437,12 +440,12 @@ export class SqliteStorage {
         return this._with_db((db) => {
             db.run(
                 `INSERT OR REPLACE INTO onboarding
-                    (email, username, slack_handle, slack_user_id,
+                    (email, username, name, slack_handle, slack_user_id,
                      project_filter, fingerprint, pubkey, state,
                      created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
-                    email, username, slack_handle, slack_user_id,
+                    email, username, name, slack_handle, slack_user_id,
                     project_filter, fingerprint, pubkey, state,
                     now, now,
                 ]
@@ -484,7 +487,7 @@ export class SqliteStorage {
      */
     async onboarding_update(email, fields) {
         const allowed = [
-            'username', 'slack_handle', 'slack_user_id',
+            'username', 'name', 'slack_handle', 'slack_user_id',
             'project_filter', 'fingerprint', 'pubkey', 'state',
         ]
         const sets = []

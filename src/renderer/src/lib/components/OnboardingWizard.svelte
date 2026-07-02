@@ -21,11 +21,20 @@
     let invite = $state(null)      // received invite payload
     let verified = $state(false)
     let typed = $state('')
+    let introduced = $state(false) // introduction already sent to the TL
+    let reintroduce = $state(false) // recovery: force a re-send on confirm
     let progress = $state(null)    // { imported_users, imported_secrets, complete }
     let poll_timer = null
 
     const can_join = $derived(
         invite && verified && typed.trim() === invite.tl_fingerprint && !busy
+    )
+
+    // Distinct provisioning warnings (poll repeats them every tick). A
+    // failed import must be visible -- otherwise the waiting step spins
+    // forever with no explanation.
+    const warning_msgs = $derived(
+        [...new Set((progress?.warnings || []).map(w => `${w.kind}: ${w.error}`))]
     )
 
     async function decide_step() {
@@ -66,14 +75,37 @@
         } catch (e) {
             error = e.message
         }
+        await auto_introduce()
         step = 'introduce'
+    }
+
+    // Send the introduction as soon as an invite is found. It only
+    // publishes our own pubkey/fingerprint (nothing to protect), so the
+    // TL sees progress immediately; the voice-call verification below
+    // still gates trust in the TL's key. Idempotent in core -- calling
+    // this on every refresh sends at most one introduction.
+    async function auto_introduce() {
+        if (!invite) return
+        try {
+            const r = await window.api.onboardIntroduce({
+                tl_slack_user_id: invite.tl_slack_user_id,
+                email: invite.email,
+            })
+            me = me || {}
+            me.fingerprint = r.fingerprint
+            introduced = true
+        } catch {
+            // Best-effort: the confirm button still sends it via join.
+        }
     }
 
     async function create_vault() {
         busy = true
         error = null
         try {
-            const result = await window.api.createVault()
+            // onboarding: true marks the new vault as mid-wizard so the
+            // app keeps this component mounted after `initialized` flips.
+            const result = await window.api.createVault({ onboarding: true })
             if (!result.canceled) onrefresh?.()
         } catch (e) {
             error = e.message
@@ -86,6 +118,7 @@
         busy = true
         try {
             invite = await window.api.onboardReceiveInvite()
+            await auto_introduce()
         } catch (e) {
             error = e.message
         } finally {
@@ -106,9 +139,13 @@
                 // Introduce under the email the TL invited us by, not the
                 // vault's user@host placeholder, so the TL can match us.
                 email: invite.email,
+                // Recovery must re-send even though we already introduced.
+                force: reintroduce,
             })
             me = me || {}
             me.fingerprint = r.fingerprint
+            introduced = true
+            reintroduce = false
             step = 'waiting'
             start_waiting()
         } catch (e) {
@@ -139,6 +176,8 @@
             invite = inv
             verified = false
             typed = ''
+            introduced = false
+            reintroduce = true
             step = 'introduce'
         } catch (e) {
             error = e.message
@@ -166,9 +205,31 @@
         poll_timer = setInterval(provision_tick, 10000)
     }
 
-    function finish() {
+    async function finish() {
         clearInterval(poll_timer)
+        try {
+            await window.api.onboardWizardDone()
+        } catch (e) {
+            error = e.message
+            return
+        }
         onrefresh?.()
+    }
+
+    // Escape hatch for a team lead (or a restore) whose fresh vault has
+    // no inviter: leave the wizard without completing Slack onboarding.
+    async function skip_onboarding() {
+        busy = true
+        error = null
+        try {
+            await window.api.onboardWizardDone()
+            clearInterval(poll_timer)
+            onrefresh?.()
+        } catch (e) {
+            error = e.message
+        } finally {
+            busy = false
+        }
     }
 
     $effect(() => {
@@ -228,6 +289,11 @@
                     {busy ? 'Checking...' : 'Check again'}
                 </button>
             {:else}
+                {#if introduced}
+                    <p class="sent-note">
+                        Your introduction is on its way to your team lead.
+                    </p>
+                {/if}
                 <p class="muted">
                     Get on a voice call with your team lead. Confirm THEIR
                     fingerprint below matches what they read aloud, and read
@@ -257,7 +323,13 @@
                 </label>
 
                 <button class="primary" disabled={!can_join} onclick={join}>
-                    {busy ? 'Sending...' : 'Confirm & introduce myself'}
+                    {#if busy}
+                        Sending...
+                    {:else if introduced}
+                        Confirm verification
+                    {:else}
+                        Confirm & introduce myself
+                    {/if}
                 </button>
             {/if}
         </div>
@@ -281,6 +353,16 @@
                     {progress.imported_secrets} secret(s) so far...
                 </p>
             {/if}
+            {#if warning_msgs.length}
+                <div class="alert warn">
+                    <strong>Some deliveries could not be imported:</strong>
+                    <ul>
+                        {#each warning_msgs as w (w)}
+                            <li>{w}</li>
+                        {/each}
+                    </ul>
+                </div>
+            {/if}
             <div class="spinner"></div>
             <div class="recover">
                 <p class="muted">
@@ -302,6 +384,17 @@
                 Your teammates and secrets have been imported.
             </p>
             <button class="primary" onclick={finish}>Go to dashboard</button>
+        </div>
+    {/if}
+
+    {#if step === 'slack' || step === 'introduce' || step === 'waiting'}
+        <div class="wizard-foot">
+            <button class="link" disabled={busy} onclick={skip_onboarding}>
+                Skip onboarding — I'm setting up a new team
+            </button>
+            <button class="link" onclick={() => window.api.openLogs()}>
+                Open logs
+            </button>
         </div>
     {/if}
 </div>
@@ -469,6 +562,46 @@
         padding: 10px 14px;
         border-radius: 6px;
         font-size: 13px;
+    }
+
+    .alert.warn {
+        background: rgba(240, 165, 0, 0.12);
+        border: 1px solid rgba(240, 165, 0, 0.6);
+        color: var(--text);
+        padding: 10px 14px;
+        border-radius: 6px;
+        font-size: 13px;
+    }
+
+    .alert.warn ul {
+        margin: 6px 0 0;
+        padding-left: 18px;
+    }
+
+    .sent-note {
+        color: var(--success);
+        font-size: 13px;
+    }
+
+    .wizard-foot {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+    }
+
+    .link {
+        background: none;
+        border: none;
+        padding: 0;
+        color: var(--text-muted);
+        font-size: 12px;
+        cursor: pointer;
+        text-decoration: underline;
+    }
+
+    .link:disabled {
+        opacity: 0.5;
+        cursor: default;
     }
 
     .spinner {

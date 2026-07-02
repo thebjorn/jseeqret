@@ -23,9 +23,13 @@ export const users_command = new Command('users')
 
         if (opts.export) {
             for (const user of users) {
-                console.log(`jseeqret add user --username ${user.username} --email ${user.email} --pubkey ${user.pubkey}`)
+                const name = user.name ? ` --name "${user.name}"` : ''
+                console.log(`jseeqret add user --username ${user.username} --email ${user.email} --pubkey ${user.pubkey}${name}`)
             }
         } else {
-            as_table('Username, Email, PublicKey', users)
+            as_table(
+                'Name, Username, Email, PublicKey',
+                users.map(u => [u.name || '', u.username, u.email, u.pubkey])
+            )
         }
     })

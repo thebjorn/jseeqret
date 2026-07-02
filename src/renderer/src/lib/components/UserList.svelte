@@ -7,7 +7,7 @@
   let sortDirection = $state('asc')
 
   // Column filter state
-  let columnFilters = $state({ username: '', email: '', pubkey: '' })
+  let columnFilters = $state({ name: '', username: '', email: '', pubkey: '' })
 
   async function loadUsers() {
     try {
@@ -36,6 +36,10 @@
   let filteredUsers = $derived.by(() => {
     let result = users
 
+    if (columnFilters.name) {
+      const f = columnFilters.name.toLowerCase()
+      result = result.filter(u => (u.name || '').toLowerCase().includes(f))
+    }
     if (columnFilters.username) {
       const f = columnFilters.username.toLowerCase()
       result = result.filter(u => u.username.toLowerCase().includes(f))
@@ -79,11 +83,13 @@
     <table>
       <thead>
         <tr class="header-row">
+          <th class="sortable" onclick={() => handleSort('name')}>Name{sortIndicator('name')}</th>
           <th class="sortable" onclick={() => handleSort('username')}>Username{sortIndicator('username')}</th>
           <th class="sortable" onclick={() => handleSort('email')}>Email{sortIndicator('email')}</th>
           <th>Public Key</th>
         </tr>
         <tr class="filter-row">
+          <th><input type="text" bind:value={columnFilters.name} placeholder="filter..." class="col-filter" /></th>
           <th><input type="text" bind:value={columnFilters.username} placeholder="filter..." class="col-filter" /></th>
           <th><input type="text" bind:value={columnFilters.email} placeholder="filter..." class="col-filter" /></th>
           <th><input type="text" bind:value={columnFilters.pubkey} placeholder="filter..." class="col-filter" /></th>
@@ -92,6 +98,7 @@
       <tbody>
         {#each filteredUsers as user}
           <tr>
+            <td>{user.name || '—'}</td>
             <td class="username">{user.username}</td>
             <td>{user.email}</td>
             <td class="pubkey" title={user.pubkey}>
@@ -101,7 +108,7 @@
         {/each}
         {#if filteredUsers.length === 0 && users.length > 0}
           <tr>
-            <td colspan="3" class="empty-filtered">No users match the column filters.</td>
+            <td colspan="4" class="empty-filtered">No users match the column filters.</td>
           </tr>
         {/if}
       </tbody>

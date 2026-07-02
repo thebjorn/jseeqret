@@ -123,6 +123,10 @@
                 </button>
             {/if}
         </div>
+
+        <button class="logs-link" onclick={() => window.api.openLogs()}>
+            Open logs
+        </button>
     </div>
 </aside>
 
@@ -292,5 +296,17 @@
 
     .update-msg.error {
         color: var(--danger, #e94560);
+    }
+
+    .logs-link {
+        background: none;
+        border: none;
+        padding: 0;
+        color: var(--text-muted);
+        font-size: 11px;
+        font-family: var(--font-mono);
+        cursor: pointer;
+        text-decoration: underline;
+        text-align: left;
     }
 </style>

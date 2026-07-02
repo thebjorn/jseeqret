@@ -1,5 +1,35 @@
 # Lessons
 
+## Onboarding: wizard unmounted itself; GUI flows need lifecycle state (2026-07)
+
+- **Deriving "show the wizard" from `vault_status.initialized` was a
+  self-defeating condition:** the wizard's own first step creates the
+  vault, flipping `initialized` true, which unmounted the wizard before
+  the Slack/introduce steps could ever render. Every wizard step past
+  "create" was dead code in production, so the v2.2.0 introduce-email fix
+  changed nothing for a real fresh install. Multi-step GUI flows that
+  *cause* the condition they're gated on need their own persisted
+  lifecycle flag (here: `onboard.wizard` in the vault kv), cleared
+  explicitly on finish/skip.
+
+- **First-run paths only manifest on genuinely fresh machines.** Dev
+  machines always have a vault + registry default, and core tests drive
+  components in isolation, so nothing exercised the App.svelte mount
+  condition across the create transition. Windows Sandbox was the first
+  real fresh environment — and it failed for a reason no test could see.
+
+- **A packaged Electron app with zero file logging is undebuggable in the
+  field.** `console.error` in the main process goes nowhere without a
+  console. Added `src/main/logger.js` + a `handle()` wrapper so every IPC
+  failure lands in `%APPDATA%\jseeqret\logs\main.log` with its channel
+  name; never log payloads/tokens/keys.
+
+- **Results collected into a `warnings` array are silent failures unless
+  something renders them.** `onboard_provision_poll` faithfully returned
+  per-envelope import errors; the wizard never read them, so a failed
+  provisioning spun forever. When adding a warnings channel, grep every
+  caller for who displays it.
+
 ## Onboarding: identity divergence + tests that mask it (2026-07)
 
 - **A fresh vault's self-identity is `user@host` with a placeholder email,

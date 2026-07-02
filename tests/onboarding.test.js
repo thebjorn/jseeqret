@@ -15,6 +15,7 @@ import { encode_key } from '../src/core/crypto/nacl.js'
 import { compute_fingerprint } from '../src/core/slack/identity.js'
 import { MESSAGE_KINDS } from '../src/core/serializers/envelope.js'
 import { poll_envelopes } from '../src/core/slack/transport.js'
+import { UserListSerializer } from '../src/core/serializers/user-list.js'
 import {
     ONBOARDING_STATES,
     pubkey_fingerprint,
@@ -23,6 +24,7 @@ import {
     onboard_invite,
     onboard_receive_invite,
     onboard_join,
+    onboard_introduce,
     onboard_poll,
     onboard_approve,
     onboard_provision_poll,
@@ -31,6 +33,8 @@ import {
     expire_stale_onboarding,
     set_tl_trust,
     get_tl_trust,
+    get_wizard_state,
+    set_wizard_state,
 } from '../src/core/onboarding.js'
 
 const CHANNEL = 'C_SEEQRETS'
@@ -208,6 +212,48 @@ describe('onboard_receive_invite + onboard_join (user, steps 5-7)', () => {
         expect(intros[0].kind).toBe(MESSAGE_KINDS.introduction)
         expect(intros[0].payload.email).toBe('newbie@test.com')
         expect(intros[0].payload.pubkey).toBe(user_self.pubkey)
+    })
+})
+
+describe('onboard_introduce (auto-introduce, idempotent)', () => {
+    const opts = () => ({
+        channel_id: CHANNEL, self: user_self, tl_slack_user_id: 'U_TL',
+        email: 'newbie@test.com',
+    })
+
+    async function tl_introductions() {
+        const got = await collect(poll_envelopes({
+            client: ws.client('U_TL'), channel_id: CHANNEL, self_user_id: 'U_TL',
+        }))
+        return got.filter(e => e.kind === MESSAGE_KINDS.introduction)
+    }
+
+    it('sends once, then skips repeats for the same email', async () => {
+        const r1 = await onboard_introduce(user_storage, ws.client('U_USER'), opts())
+        expect(r1.sent).toBe(true)
+
+        const r2 = await onboard_introduce(user_storage, ws.client('U_USER'), opts())
+        expect(r2.sent).toBe(false)
+
+        expect(await tl_introductions()).toHaveLength(1)
+    })
+
+    it('re-sends when the invited email changes', async () => {
+        await onboard_introduce(user_storage, ws.client('U_USER'), opts())
+        const r = await onboard_introduce(user_storage, ws.client('U_USER'), {
+            ...opts(), email: 'other@test.com',
+        })
+        expect(r.sent).toBe(true)
+        expect(await tl_introductions()).toHaveLength(2)
+    })
+
+    it('force re-sends for the recovery path', async () => {
+        await onboard_introduce(user_storage, ws.client('U_USER'), opts())
+        const r = await onboard_introduce(user_storage, ws.client('U_USER'), {
+            ...opts(), force: true,
+        })
+        expect(r.sent).toBe(true)
+        expect(await tl_introductions()).toHaveLength(2)
     })
 })
 
@@ -558,6 +604,83 @@ describe('tl trust context (user side)', () => {
     it('returns nulls when nothing is stored', async () => {
         const trust = await get_tl_trust(user_storage)
         expect(trust.tl_fingerprint).toBeNull()
+    })
+})
+
+describe('display name (migration v005)', () => {
+    it('threads the invite name through capture and approval', async () => {
+        await onboard_invite(tl_storage, ws.client('U_TL'), {
+            email: 'newbie@test.com', project: 'myapp:*:*', name: 'Steinar',
+            channel_id: CHANNEL, self: tl_self,
+        })
+        await onboard_join(user_storage, ws.client('U_USER'), {
+            channel_id: CHANNEL, self: user_self, tl_slack_user_id: 'U_TL',
+            email: 'newbie@test.com',
+        })
+        await onboard_poll(tl_storage, ws.client('U_TL'), {
+            channel_id: CHANNEL, self_user_id: 'U_TL',
+        })
+
+        // The introduction's machine identity must NOT clobber the
+        // invite's display name -- they live in separate columns.
+        const row = await tl_storage.onboarding_get('newbie@test.com')
+        expect(row.username).toBe('newbie@host')
+        expect(row.name).toBe('Steinar')
+
+        await onboard_approve(tl_storage, ws.client('U_TL'), {
+            email: 'newbie@test.com', verified: true,
+            fingerprint: row.fingerprint,
+            channel_id: CHANNEL, self: tl_self,
+            sender_private_key: tl_kp.secretKey,
+        })
+
+        const stored = await tl_storage.fetch_user('newbie@host')
+        expect(stored.name).toBe('Steinar')
+        expect(stored.slack_handle).toBe('Steinar')
+    })
+
+    it('user-list serializer round-trips the display name', () => {
+        const named = new User(
+            'alice@host', 'alice@test.com', encode_key(alice_kp.publicKey),
+            { name: 'Alice' },
+        )
+        const exporter = new UserListSerializer({
+            sender: tl_self, receiver: user_self,
+            sender_private_key: tl_kp.secretKey,
+        })
+        const importer = new UserListSerializer({
+            sender: tl_self, receiver_private_key: user_kp.secretKey,
+        })
+
+        const loaded = importer.load(exporter.dumps([named]))
+        expect(loaded[0].name).toBe('Alice')
+        expect(loaded[0].username).toBe('alice@host')
+    })
+
+    it('add_user persists and fetch_user returns the name', async () => {
+        await tl_storage.add_user(new User(
+            'carol@host', 'carol@test.com', tl_self.pubkey, { name: 'Carol' },
+        ))
+        const u = await tl_storage.fetch_user('carol@host')
+        expect(u.name).toBe('Carol')
+    })
+})
+
+describe('first-run wizard lifecycle flag', () => {
+    // Regression guard for the sandbox failure: `initialized` flips true
+    // as soon as the wizard creates the vault, so the GUI keeps the wizard
+    // mounted on this flag instead. It must survive a restart (kv) and be
+    // clearable on finish/skip.
+    it('is null on a fresh vault', async () => {
+        expect(await get_wizard_state(user_storage)).toBeNull()
+    })
+
+    it('round-trips active and clears to null', async () => {
+        await set_wizard_state(user_storage, 'active')
+        expect(await get_wizard_state(user_storage)).toBe('active')
+
+        await set_wizard_state(user_storage, null)
+        expect(await get_wizard_state(user_storage)).toBeNull()
     })
 })
 

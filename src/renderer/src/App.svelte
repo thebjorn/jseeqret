@@ -58,7 +58,10 @@
                 <div class="loading-spinner"></div>
                 <span>Connecting to vault...</span>
             </div>
-        {:else if !vault_status.initialized}
+        {:else if !vault_status.initialized || vault_status.onboarding_active}
+            <!-- Keep the wizard mounted across vault creation: `initialized`
+                 flips true after the create step, but Slack onboarding is
+                 still in progress until the wizard clears the flag. -->
             <OnboardingWizard vault_status={vault_status} onrefresh={handle_vault_switch} />
         {:else}
             {#key refresh_key}

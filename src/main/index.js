@@ -4,6 +4,7 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import pkg from 'electron-updater'
 const { autoUpdater } = pkg
 import { register_ipc_handlers, ensure_active_vault_migrated } from './ipc-handlers.js'
+import { init_logger, log_info, log_error } from './logger.js'
 
 function createWindow() {
     const mainWindow = new BrowserWindow({
@@ -48,7 +49,7 @@ function setup_auto_updater(main_window) {
         send_status('checking')
     })
     autoUpdater.on('update-available', (info) => {
-        console.log('Update available:', info.version)
+        log_info('update available:', info.version)
         send_status('available', { version: info.version })
     })
     autoUpdater.on('update-not-available', () => {
@@ -58,11 +59,11 @@ function setup_auto_updater(main_window) {
         send_status('downloading', { percent: Math.round(progress.percent) })
     })
     autoUpdater.on('update-downloaded', (info) => {
-        console.log('Update downloaded:', info.version)
+        log_info('update downloaded:', info.version)
         send_status('downloaded', { version: info.version })
     })
     autoUpdater.on('error', (err) => {
-        console.error('Auto-update error:', err.message)
+        log_error('auto-update error:', err)
         send_status('error', { message: err.message })
     })
 
@@ -98,6 +99,19 @@ if (!got_instance_lock) {
 
     app.whenReady().then(async () => {
         electronApp.setAppUserModelId('com.jseeqret')
+
+        // File logging: a packaged app has no console, so diagnostics
+        // (IPC failures, onboarding events, crashes) must land on disk.
+        init_logger(join(app.getPath('userData'), 'logs'))
+        log_info(`jseeqret ${app.getVersion()} starting`)
+        // Monitor variant: logs the crash without suppressing Electron's
+        // default fatal handling.
+        process.on('uncaughtExceptionMonitor', (e) => {
+            log_error('uncaughtException:', e?.stack || e)
+        })
+        process.on('unhandledRejection', (e) => {
+            log_error('unhandledRejection:', e?.stack || e)
+        })
 
         app.on('browser-window-created', (_, window) => {
             optimizer.watchWindowShortcuts(window)

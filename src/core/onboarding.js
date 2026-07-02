@@ -39,7 +39,9 @@ import {
 import { MESSAGE_KINDS } from './serializers/envelope.js'
 import { JsonCryptSerializer } from './serializers/json-crypt.js'
 import { UserListSerializer } from './serializers/user-list.js'
-import { slack_config_get, slack_config_set } from './slack/config.js'
+import {
+    slack_config_get, slack_config_set, slack_config_delete,
+} from './slack/config.js'
 
 /**
  * Vault-side (kv) keys for the new user's trust context: the team lead's
@@ -51,6 +53,8 @@ export const ONBOARD_KEYS = {
     tl_pubkey: 'onboard.tl_pubkey',
     tl_fingerprint: 'onboard.tl_fingerprint',
     project: 'onboard.project',
+    wizard: 'onboard.wizard',
+    introduced: 'onboard.introduced',
 }
 
 /** Plaintext a `complete` ack's NaCl-Box proof must decrypt to. */
@@ -187,9 +191,11 @@ export async function onboard_invite(storage, client, opts) {
         )
     }
 
+    // `name` is the human display name; `username` stays null until the
+    // introduction delivers the vault's machine identity (user@host).
     await storage.onboarding_create({
         email,
-        username: name,
+        name,
         slack_user_id: hit.id,
         project_filter: project,
         state: ONBOARDING_STATES.invited,
@@ -323,15 +329,18 @@ export async function onboard_approve(storage, client, opts) {
         )
     }
 
-    const new_user = new User(row.username, email, row.pubkey)
+    const new_user = new User(row.username, email, row.pubkey, {
+        name: row.name || null,
+    })
     // Idempotent: a retry must not throw on the unique-username constraint.
     const existing = await storage.fetch_user(row.username)
     if (!existing) {
         await storage.add_user(new_user)
     }
     // Record the verified binding so future `send`s work without re-linking.
-    // Derive a handle when the intro didn't carry one (matches `slack link`).
-    const handle = row.slack_handle || row.username.split('@')[0]
+    // Derive a handle when the intro didn't carry one (matches `slack link`);
+    // the display name beats the machine identity's account part.
+    const handle = row.slack_handle || (row.name || row.username).split('@')[0]
     await storage.update_user_slack(row.username, {
         slack_handle: handle,
         slack_key_fingerprint: row.fingerprint,
@@ -477,6 +486,41 @@ export async function onboard_join(storage, client, opts) {
         },
     })
     return { file_id: sent.file_id }
+}
+
+/**
+ * Idempotent introduction: send at most once per invited email, recorded
+ * in the vault kv. The introduction only publishes the user's OWN pubkey
+ * and fingerprint (public by definition), so it is safe to send BEFORE
+ * the out-of-band verification -- the GUI auto-sends it as soon as the
+ * invite is found, and the voice-call gate still guards `set_tl_trust`
+ * (imports cannot authenticate without it). `force` re-sends for the
+ * recovery path (introduction lost to Slack retention).
+ *
+ * @param {object} opts - onboard_join opts plus {boolean} [opts.force]
+ * @returns {Promise<{sent: boolean, email: string, file_id?: string}>}
+ */
+export async function onboard_introduce(storage, client, opts) {
+    const {
+        channel_id, self, tl_slack_user_id, email = null, force = false,
+    } = opts
+    const target = email || self.email
+
+    if (!force) {
+        const already = await slack_config_get(storage, ONBOARD_KEYS.introduced)
+        if (already && already.email === target) {
+            return { sent: false, email: target }
+        }
+    }
+
+    const r = await onboard_join(storage, client, {
+        channel_id, self, tl_slack_user_id, email: target,
+    })
+    await slack_config_set(storage, ONBOARD_KEYS.introduced, {
+        email: target,
+        at: _now(),
+    })
+    return { sent: true, email: target, file_id: r.file_id }
 }
 
 /**
@@ -639,6 +683,32 @@ export async function get_tl_trust(storage) {
         tl_pubkey: await slack_config_get(storage, ONBOARD_KEYS.tl_pubkey),
         tl_fingerprint: await slack_config_get(storage, ONBOARD_KEYS.tl_fingerprint),
         project: await slack_config_get(storage, ONBOARD_KEYS.project),
+    }
+}
+
+/**
+ * First-run wizard lifecycle flag. `initialized` (vault dir + db exist)
+ * flips true the moment the wizard's create step finishes, so the GUI
+ * cannot use it to decide whether onboarding is still in progress -- it
+ * would unmount the wizard before the Slack/introduce steps run. This
+ * flag is set when the wizard creates the vault and cleared when the
+ * wizard completes (or the user explicitly skips it).
+ *
+ * @returns {Promise<string|null>} 'active' while the wizard owns the UI
+ */
+export async function get_wizard_state(storage) {
+    return slack_config_get(storage, ONBOARD_KEYS.wizard)
+}
+
+/**
+ * Set or clear the wizard lifecycle flag. Pass null to clear.
+ * @param {string|null} state
+ */
+export async function set_wizard_state(storage, state) {
+    if (state == null) {
+        await slack_config_delete(storage, ONBOARD_KEYS.wizard)
+    } else {
+        await slack_config_set(storage, ONBOARD_KEYS.wizard, state)
     }
 }
 

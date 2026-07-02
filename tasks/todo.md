@@ -1,5 +1,80 @@
 # TODO
 
+## Fix: first-run wizard unmounts after vault creation (2026-07-02)
+
+Root cause of the sandbox onboarding failure: `App.svelte` shows
+`OnboardingWizard` only while `!vault_status.initialized`. The wizard's own
+create step flips `initialized` to true, so the wizard unmounts before the
+Slack/introduce steps ever render — on a fresh machine the Slack onboarding
+is unreachable, and the user falls back to the manual Introduction view
+(placeholder `user@host` email, which the TL can never match to the invite).
+
+Secondary: `onboard_provision_poll` warnings are never surfaced (silent
+stall in the waiting step), and the packaged app writes no logs at all.
+
+### Plan
+
+- [x] Core: `onboard.wizard` kv flag + `get_wizard_state`/`set_wizard_state`
+      in `src/core/onboarding.js` (+ tests in `tests/onboarding.test.js`)
+- [x] Main: `vaults:create` takes `{ onboarding }` and sets the flag on the
+      new vault; `vault:status` returns `onboarding_active`; new
+      `onboard:wizard-done` handler clears the flag
+- [x] Main: `src/main/logger.js` (plain fs append, size-capped rotation,
+      no electron import); init from `src/main/index.js` with
+      `app.getPath('userData')/logs`; log app start, updater events,
+      uncaught errors (via `uncaughtExceptionMonitor` so default fatal
+      handling is preserved)
+- [x] Main: wrap `ipcMain.handle` registrations in a logging `handle()`
+      helper (failures logged with channel name); info-logs for key
+      onboarding events; `app:open-logs` handler
+- [x] Preload: `createVault(opts)`, `onboardWizardDone()`, `openLogs()`
+- [x] Renderer: `App.svelte` keeps wizard mounted while
+      `!initialized || onboarding_active`; wizard passes
+      `{ onboarding: true }` to createVault, clears the flag on finish,
+      gains a "Skip" escape hatch (team-lead bootstrap) and shows
+      provision-poll warnings in the waiting step; "Open logs" affordance
+      in wizard + sidebar
+- [x] Verify: pnpm test, pnpm build, review diff
+
+### Follow-ups implemented (2026-07-02, user confirmed)
+
+- [x] (i) Auto-introduce: `onboard_introduce` core primitive (idempotent
+      per invited email via `onboard.introduced` kv marker, `force` for
+      recovery), `onboard:introduce` IPC, wizard auto-sends when the
+      invite is found; `onboard:join` now anchors trust + skips the
+      duplicate send; CLI `onboard join` uses the same primitive with
+      force. Voice-call gate unchanged (introduction carries only the
+      user's own pubkey).
+- [x] (ii) Display name: migration v005 (`users.name` +
+      `onboarding.name`), User model/storage/serializer threading,
+      invite `--name` no longer clobbered by the introduction's
+      machine identity, approve stores name + derives handle from it,
+      GUI (UserList/OnboardingView/ApproveDialog) and CLI
+      (`add user --name`, `users` table/--export) surfaces.
+- [x] Python seeqret mirror: `db_v_004` (onboarding table, keeps the
+      shared version ladder aligned) + `db_v_005` (name columns),
+      User model + storage + `add user --name`. Found and fixed a
+      latent bug in `migrations/utils.py`: double-quoted literals in
+      `column_exists` resolve as identifiers (`name="name"` ≡
+      `name=name`, always true), which silently skipped the v005
+      ALTER TABLE. Remaining 3 test failures in
+      tests/test_resolve_user.py are pre-existing machine-dependent
+      fixtures (admin = current_user() = 'bjorn' collides), verified
+      identical on the clean checkout.
+
+### Verification
+
+- `pnpm test` — 417 passing / 5 skipped, 45 files (2 new: wizard-flag
+  tests in onboarding.test.js, tests/main-logger.test.js).
+- `pnpm build` — main/preload/renderer compile clean.
+- `VaultSwitcher.createVault()` passes no opts → additional vaults never
+  set the wizard flag (existing users unaffected).
+- Not yet exercised on a real fresh install: the create → slack →
+  introduce transition in the packaged app (needs the native folder
+  dialog). Sandbox test plan: install, create vault, confirm the wizard
+  STAYS on "Connect Slack", finish onboarding; logs land in
+  %APPDATA%\jseeqret\logs\main.log.
+
 ## Multi-Vault Feature
 
 ### Plan

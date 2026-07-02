@@ -29,6 +29,7 @@ describe('User model', () => {
             username: 'alice',
             email: 'a@b.com',
             pubkey: 'pk',
+            name: null,
             slack_handle: null,
             slack_key_fingerprint: null,
             slack_verified_at: null,

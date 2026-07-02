@@ -82,7 +82,7 @@
             const r = await window.api.onboardInvite({
                 email: row.email,
                 project: row.project_filter,
-                name: row.username || null,
+                name: row.name || null,
             })
             notice = `Re-sent invite to ${row.email}.`
                 + ` Read your fingerprint ${r.fingerprint} aloud on the voice call.`
@@ -162,11 +162,12 @@
         {:else}
             <table class="onboard-table">
                 <thead>
-                    <tr><th>Email</th><th>State</th><th>Project</th><th>Fingerprint</th><th></th></tr>
+                    <tr><th>Name</th><th>Email</th><th>State</th><th>Project</th><th>Fingerprint</th><th></th></tr>
                 </thead>
                 <tbody>
                     {#each rows as row (row.email)}
                         <tr class:expired={row.state === 'expired'}>
+                            <td>{row.name || '—'}</td>
                             <td>{row.email}</td>
                             <td><span class="badge {row.state}">{STATE_BADGE[row.state] || row.state}</span></td>
                             <td class="mono">{row.project_filter || ''}</td>

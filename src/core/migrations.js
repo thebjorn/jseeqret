@@ -171,6 +171,26 @@ function init_db_v004(db) {
 }
 
 /**
+ * Migration 005: Display name.
+ *
+ * `users.username` is the machine identity (`user@host`), so nothing
+ * identified the person. `name` carries the human display name: set by
+ * the team lead's invite (`onboarding.name`) and copied onto the user
+ * row at approval. Nullable, so vaults written by older versions (and
+ * the Python tool) stay readable.
+ */
+function init_db_v005(db) {
+    if (!column_exists(db, 'users', 'name')) {
+        db.run('ALTER TABLE users ADD COLUMN name TEXT')
+    }
+    if (!column_exists(db, 'onboarding', 'name')) {
+        db.run('ALTER TABLE onboarding ADD COLUMN name TEXT')
+    }
+
+    db.run('INSERT OR IGNORE INTO migrations (version) VALUES (5)')
+}
+
+/**
  * Run all pending migrations.
  * @param {string} vault_dir
  * @param {string} username
@@ -198,6 +218,10 @@ export async function run_migrations(vault_dir, username, email, pubkey) {
 
         if (version < 4) {
             init_db_v004(db)
+        }
+
+        if (version < 5) {
+            init_db_v005(db)
         }
 
         save_db(db, db_path)
@@ -235,6 +259,12 @@ export async function upgrade_db(vault_dir) {
         if (version < 4) {
             init_db_v004(db)
             console.log('Upgraded to version 4.')
+            upgraded = true
+        }
+
+        if (version < 5) {
+            init_db_v005(db)
+            console.log('Upgraded to version 5.')
             upgraded = true
         }
 

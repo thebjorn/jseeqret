@@ -40,7 +40,7 @@
     onclick={(e) => { if (e.target === e.currentTarget) onclose?.() }}
 >
     <div class="dialog" role="dialog" aria-modal="true" tabindex="-1">
-        <h2>Approve {row.email}</h2>
+        <h2>Approve {row.name ? `${row.name} <${row.email}>` : row.email}</h2>
         <p class="muted">
             Verify this fingerprint OUT-OF-BAND on a voice call before
             approving. Never trust a fingerprint that came over Slack.

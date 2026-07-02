@@ -36,6 +36,7 @@ export class UserListSerializer extends BaseSerializer {
             username: u.username,
             email: u.email,
             pubkey: u.pubkey,
+            name: u.name ?? null,
         }))
 
         const encrypted = asymmetric_encrypt(
@@ -66,7 +67,9 @@ export class UserListSerializer extends BaseSerializer {
         )
         const records = JSON.parse(plaintext)
 
-        return records.map(r => new User(r.username, r.email, r.pubkey))
+        return records.map(r => new User(r.username, r.email, r.pubkey, {
+            name: r.name || null,
+        }))
     }
 }
 

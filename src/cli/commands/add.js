@@ -106,10 +106,13 @@ const add_user = new Command('user')
     .requiredOption('--username <username>', 'Username')
     .requiredOption('--email <email>', 'User email')
     .requiredOption('--pubkey <pubkey>', 'User public key (base64)')
+    .option('--name <name>', 'Display name (the person, not the account)')
     .action(async (opts) => {
         require_vault()
         const storage = new SqliteStorage()
-        const user = new User(opts.username, opts.email, opts.pubkey)
+        const user = new User(opts.username, opts.email, opts.pubkey, {
+            name: opts.name || null,
+        })
         await storage.add_user(user)
         console.log(`Added user: ${opts.username}`)
     })

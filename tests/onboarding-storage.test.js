@@ -51,10 +51,11 @@ describe('migration v004 — onboarding table', () => {
     })
 
     it('upgrade_db adds the onboarding table to a pre-v4 vault', async () => {
-        // Simulate an older vault by dropping the table + version row.
+        // Simulate an older vault by dropping the table + version rows
+        // (v5 must go too or MAX(version) hides the missing table).
         await storage._with_db((db) => {
             db.run('DROP TABLE onboarding')
-            db.run('DELETE FROM migrations WHERE version = 4')
+            db.run('DELETE FROM migrations WHERE version >= 4')
         }, true)
 
         await upgrade_db(tmp_dir)

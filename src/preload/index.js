@@ -19,10 +19,11 @@ const api = {
     addVault: (data) => ipcRenderer.invoke('vaults:add', data),
     removeVault: (data) => ipcRenderer.invoke('vaults:remove', data),
     switchVault: (data) => ipcRenderer.invoke('vaults:switch', data),
-    createVault: () => ipcRenderer.invoke('vaults:create'),
+    createVault: (opts) => ipcRenderer.invoke('vaults:create', opts),
     getDefaultVault: () => ipcRenderer.invoke('vaults:default'),
     checkForUpdate: () => ipcRenderer.invoke('app:check-update'),
     installUpdate: () => ipcRenderer.invoke('app:install-update'),
+    openLogs: () => ipcRenderer.invoke('app:open-logs'),
     onUpdateStatus: (callback) => {
         const handler = (_event, data) => callback(data)
         ipcRenderer.on('update:status', handler)
@@ -46,8 +47,10 @@ const api = {
 
     // Onboarding — new-user side
     onboardReceiveInvite: () => ipcRenderer.invoke('onboard:receive-invite'),
+    onboardIntroduce: (data) => ipcRenderer.invoke('onboard:introduce', data),
     onboardJoin: (data) => ipcRenderer.invoke('onboard:join', data),
     onboardProvisionPoll: () => ipcRenderer.invoke('onboard:provision-poll'),
+    onboardWizardDone: () => ipcRenderer.invoke('onboard:wizard-done'),
 }
 
 if (process.contextIsolated) {
