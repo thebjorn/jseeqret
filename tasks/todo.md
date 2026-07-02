@@ -62,6 +62,20 @@ stall in the waiting step), and the packaged app writes no logs at all.
       fixtures (admin = current_user() = 'bjorn' collides), verified
       identical on the clean checkout.
 
+### Open follow-ups (post v2.3.1, flow verified end-to-end 2026-07-02)
+
+- [ ] Sender-side envelope cleanup: receivers who are not workspace
+      admins cannot delete the TL's provisioning messages
+      (`cant_delete_message`), so forward-secrecy cleanup should move to
+      the sender after the `complete` ack (receiver-side delete is now
+      best-effort/traced only).
+- [ ] Old broken envelopes (pre-fix detached-mention pairs) linger in
+      #seeqrets and get re-scanned by every poll from oldest=0 — clean
+      the channel and/or consider a smarter poll cursor.
+- [ ] Consider a `slack doctor`-style transport self-test command based
+      on the send-to-self + verify-thread + delete pattern used to
+      verify the share-ts fix.
+
 ### Verification
 
 - `pnpm test` — 417 passing / 5 skipped, 45 files (2 new: wizard-flag
