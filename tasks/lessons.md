@@ -1,5 +1,25 @@
 # Lessons
 
+## Slack transport: the mock's one behavioral lie hid a total failure (2026-07)
+
+- `files.uploadV2` shares the file into the channel ASYNCHRONOUSLY —
+  the response usually has empty `shares`, and `file.timestamp` is a
+  creation time, not a message ts. The fallback to it anchored the
+  recipient mention outside the file's thread, so `poll_inbox` (which
+  matches mentions among the file message's replies) matched NOTHING
+  over real Slack, in both directions. Every onboarding envelope was
+  invisible; rows sat at `invited` forever.
+- `tests/slack-mock.js` returns a proper share ts synchronously — the
+  one place the mock diverges from real Slack is exactly where the bug
+  lived. 400+ green tests proved the protocol, not the transport. For
+  code that talks to an external service, run at least one self-cleaning
+  integration check against the real service (see the transport
+  self-test pattern: send to self, assert thread structure + poll match,
+  delete_thread).
+- Reading the actual channel (Slack MCP) found it in minutes: the
+  mention messages were visibly top-level with ts ~0.7s BEFORE their
+  file messages. Look at the real artifacts, not just the code.
+
 ## Code signing: "Successfully signed" says nothing about WHO signed (2026-07)
 
 - `signtool sign /a` (auto-select) picked a stray self-signed
