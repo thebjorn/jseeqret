@@ -163,6 +163,24 @@ describe('onboard_invite (TL, steps 1-4)', () => {
         const row = await tl_storage.onboarding_get('newbie@test.com')
         expect(row.fingerprint).toBe('abcde')
     })
+
+    it('allows re-inviting (resend) while the row is still invited', async () => {
+        await onboard_invite(tl_storage, ws.client('U_TL'), {
+            email: 'newbie@test.com', project: 'myapp:*:*', channel_id: CHANNEL, self: tl_self,
+        })
+        // Nothing captured yet at `invited`, so a resend is safe and must
+        // not throw (the first invite may have been missed).
+        await expect(onboard_invite(tl_storage, ws.client('U_TL'), {
+            email: 'newbie@test.com', project: 'myapp:*:*', channel_id: CHANNEL, self: tl_self,
+        })).resolves.toMatchObject({ slack_user_id: 'U_USER' })
+
+        // A fresh invite envelope is delivered so the user can pick it up.
+        const got = await collect(poll_envelopes({
+            client: ws.client('U_USER'), channel_id: CHANNEL, self_user_id: 'U_USER',
+        }))
+        expect(got.length).toBeGreaterThanOrEqual(1)
+        expect(got[got.length - 1].kind).toBe(MESSAGE_KINDS.invite)
+    })
 })
 
 describe('onboard_receive_invite + onboard_join (user, steps 5-7)', () => {
@@ -213,6 +231,32 @@ describe('onboard_poll (TL, steps 8-9)', () => {
         expect(row.fingerprint).toBe(compute_fingerprint(user_self))
         expect(row.pubkey).toBe(user_self.pubkey)
         expect(row.slack_user_id).toBe('U_USER')
+    })
+
+    it('matches the introduction when the user vault email differs from the invited email', async () => {
+        // A real freshly-created vault identifies as user@host with a
+        // placeholder email, NOT the address the TL invited. The introduction
+        // must still carry the invited email so the TL can match it.
+        const diverged = new User(
+            'WDAGUtilityAccount@box', 'WDAGUtilityAccount@box', user_self.pubkey
+        )
+        await onboard_invite(tl_storage, ws.client('U_TL'), {
+            email: 'newbie@test.com', project: 'myapp:*:*',
+            channel_id: CHANNEL, self: tl_self,
+        })
+        await onboard_join(user_storage, ws.client('U_USER'), {
+            channel_id: CHANNEL, self: diverged, tl_slack_user_id: 'U_TL',
+            email: 'newbie@test.com',
+        })
+
+        const result = await onboard_poll(tl_storage, ws.client('U_TL'), {
+            channel_id: CHANNEL, self_user_id: 'U_TL',
+        })
+        expect(result.events.some(e => e.email === 'newbie@test.com' && e.expected)).toBe(true)
+
+        const row = await tl_storage.onboarding_get('newbie@test.com')
+        expect(row.state).toBe(ONBOARDING_STATES.introduced)
+        expect(row.pubkey).toBe(diverged.pubkey)
     })
 
     it('flags an introduction with no matching invite as unexpected', async () => {

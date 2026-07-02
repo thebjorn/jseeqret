@@ -496,13 +496,13 @@ export function register_ipc_handlers() {
     ipcMain.handle('onboard:join', async (_event, opts) => {
         const { storage, snap, client } = await slack_ctx()
         const self = await get_self_or_throw(storage)
-        const { tl_slack_user_id, tl_pubkey, tl_fingerprint, project } = opts
+        const { tl_slack_user_id, tl_pubkey, tl_fingerprint, project, email } = opts
         await set_tl_trust(storage, {
             user_id: tl_slack_user_id, pubkey: tl_pubkey,
             fingerprint: tl_fingerprint, project,
         })
         await onboard_join(storage, client, {
-            channel_id: snap.channel_id, self, tl_slack_user_id,
+            channel_id: snap.channel_id, self, tl_slack_user_id, email,
         })
         return { ok: true, fingerprint: compute_fingerprint(self) }
     })

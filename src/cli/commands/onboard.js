@@ -224,6 +224,10 @@ const onboard_join_cmd = new Command('join')
             console.log(`\nYour fingerprint to read aloud: ${compute_fingerprint(self)}`)
             await onboard_join(storage, client, {
                 channel_id, self, tl_slack_user_id: invite.tl_slack_user_id,
+                // Introduce under the invited email so the TL can match this
+                // introduction to the invite (self.email is the user@host
+                // placeholder of a freshly created vault).
+                email: invite.email,
             })
             console.log('Introduction sent. Wait for approval, then run: jseeqret onboard receive')
             process.exit(0)

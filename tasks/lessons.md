@@ -1,5 +1,34 @@
 # Lessons
 
+## Onboarding: identity divergence + tests that mask it (2026-07)
+
+- **A fresh vault's self-identity is `user@host` with a placeholder email,
+  NOT the invited email.** The new-user wizard auto-creates the vault via
+  `vaults:create`, which sets `email = qualified_user()` (e.g.
+  `WDAGUtilityAccount@<host>`). The TL matches introductions to invites by
+  the **invited email** (`onboard_poll` → `onboarding_get(payload.email)`),
+  so the introduction MUST carry the invited email (from the received
+  invite), not `self.email`. Fixed by threading `invite.email` through
+  `onboard_join` (core + `onboard:join` IPC + wizard + CLI).
+
+- **Onboarding tests set the new user's vault email == the invited email**
+  (`user_self` email `newbie@test.com`, invited as `newbie@test.com`), so
+  the whole `self.email`-vs-invited-email divergence was invisible to a green
+  suite. When a value can legitimately differ between two actors, give them
+  DIFFERENT values in the fixture or the test proves nothing. Added a
+  regression test with a diverged `user@host` identity.
+
+- **Don't over-index on the first plausible root cause.** I had a detailed
+  `files.uploadV2` share-ts theory ready to patch before the user's Slack
+  screenshot showed the invite (mention + blob) was posted fine — the real
+  blocker was the identity mismatch. Confirm the symptom against real
+  evidence before editing security-sensitive transport code.
+
+- **`onboard_invite` blocked all resends.** The guard refused any non-
+  terminal row, so a stuck `invited` row could not be re-sent for 7 days.
+  `invited` has nothing captured yet (unlike `introduced`+), so resend is
+  safe there; relaxed the guard and added a GUI **Resend** action.
+
 ## Onboarding implementation (2026-06)
 
 - **`process.exit(1)` after sql.js is loaded crashes on Windows** with a

@@ -69,6 +69,31 @@
         }
     }
 
+    let resending = $state(null)   // email currently being resent
+
+    // Re-post the invite for a row that never advanced (invited) or timed
+    // out (expired). Safe because core only re-posts when nothing has been
+    // captured yet; it reuses the row's stored project + display name.
+    async function resend(row) {
+        resending = row.email
+        error = null
+        notice = null
+        try {
+            const r = await window.api.onboardInvite({
+                email: row.email,
+                project: row.project_filter,
+                name: row.username || null,
+            })
+            notice = `Re-sent invite to ${row.email}.`
+                + ` Read your fingerprint ${r.fingerprint} aloud on the voice call.`
+            await load_list()
+        } catch (e) {
+            error = e.message
+        } finally {
+            resending = null
+        }
+    }
+
     function open_approve(row) {
         approve_target = row
     }
@@ -146,7 +171,16 @@
                             <td><span class="badge {row.state}">{STATE_BADGE[row.state] || row.state}</span></td>
                             <td class="mono">{row.project_filter || ''}</td>
                             <td class="mono">{row.fingerprint || '—'}</td>
-                            <td>
+                            <td class="actions">
+                                {#if row.state === 'invited' || row.state === 'expired'}
+                                    <button
+                                        class="resend-btn"
+                                        disabled={!slack_ready || resending === row.email}
+                                        onclick={() => resend(row)}
+                                    >
+                                        {resending === row.email ? 'Resending...' : 'Resend'}
+                                    </button>
+                                {/if}
                                 <button
                                     class="approve-btn"
                                     disabled={row.state !== 'introduced'}
@@ -288,6 +322,27 @@
     .badge.introduced { color: var(--accent); }
     .badge.complete { color: var(--success); }
     .badge.provisioned { color: var(--success); }
+
+    .actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+    }
+
+    .resend-btn {
+        padding: 5px 12px;
+        background: transparent;
+        color: var(--text-muted);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        font-size: 12px;
+        cursor: pointer;
+    }
+
+    .resend-btn:disabled {
+        opacity: 0.4;
+        cursor: default;
+    }
 
     .approve-btn {
         padding: 5px 12px;

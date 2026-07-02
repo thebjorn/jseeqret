@@ -103,11 +103,43 @@
                 tl_pubkey: invite.tl_pubkey,
                 tl_fingerprint: invite.tl_fingerprint,
                 project: invite.project,
+                // Introduce under the email the TL invited us by, not the
+                // vault's user@host placeholder, so the TL can match us.
+                email: invite.email,
             })
             me = me || {}
             me.fingerprint = r.fingerprint
             step = 'waiting'
             start_waiting()
+        } catch (e) {
+            error = e.message
+        } finally {
+            busy = false
+        }
+    }
+
+    // Recovery from a stuck "waiting" state: if the team lead never
+    // approves (e.g. an earlier introduction went out under the wrong
+    // identity, or the introduction was lost to Slack retention), let the
+    // user re-introduce. We route BACK THROUGH the introduce step rather
+    // than re-joining silently, so the out-of-band fingerprint gate is
+    // re-applied and we never re-anchor trust on a Slack-delivered key
+    // without a fresh human check.
+    async function recover_reintroduce() {
+        busy = true
+        error = null
+        try {
+            const inv = await window.api.onboardReceiveInvite()
+            if (!inv) {
+                error = 'No invite found in #seeqrets. Ask your team lead to'
+                    + ' resend the invite, then try again.'
+                return
+            }
+            clearInterval(poll_timer)
+            invite = inv
+            verified = false
+            typed = ''
+            step = 'introduce'
         } catch (e) {
             error = e.message
         } finally {
@@ -250,6 +282,16 @@
                 </p>
             {/if}
             <div class="spinner"></div>
+            <div class="recover">
+                <p class="muted">
+                    Stuck here for a while? Your team lead may need to resend
+                    the invite. Then re-verify their fingerprint and introduce
+                    yourself again.
+                </p>
+                <button class="ghost" disabled={busy} onclick={recover_reintroduce}>
+                    {busy ? 'Checking...' : 'Re-verify & re-introduce'}
+                </button>
+            </div>
         </div>
 
     {:else if step === 'done'}
@@ -437,6 +479,15 @@
         border-radius: 50%;
         animation: spin 0.8s linear infinite;
         align-self: center;
+    }
+
+    .recover {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-top: 8px;
+        padding-top: 14px;
+        border-top: 1px solid var(--border);
     }
 
     @keyframes spin {

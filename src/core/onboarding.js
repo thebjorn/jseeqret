@@ -161,13 +161,18 @@ export async function onboard_invite(storage, client, opts) {
         download_url = DEFAULT_DOWNLOAD_URL,
     } = opts
 
-    // Don't clobber an in-progress row (which holds the captured
-    // fingerprint/pubkey). Re-inviting is only allowed once the prior row
-    // has reached a terminal state.
+    // Re-inviting must not clobber a row that already captured the user's
+    // fingerprint/pubkey (introduced/approved/provisioned) -- INSERT OR
+    // REPLACE would wipe it. But an `invited` row has nothing captured yet,
+    // so resending to it (e.g. the first invite was missed) is safe and
+    // expected; `complete`/`expired` rows are terminal and may be restarted.
     const existing = await storage.onboarding_get(email)
-    if (existing
-        && existing.state !== ONBOARDING_STATES.complete
-        && existing.state !== ONBOARDING_STATES.expired) {
+    const RESENDABLE = new Set([
+        ONBOARDING_STATES.invited,
+        ONBOARDING_STATES.complete,
+        ONBOARDING_STATES.expired,
+    ])
+    if (existing && !RESENDABLE.has(existing.state)) {
         throw new Error(
             `onboarding already in progress for ${email}`
             + ` (state: ${existing.state}). Let it complete or expire first.`
@@ -452,15 +457,20 @@ export async function onboard_receive_invite(storage, client, opts) {
  * @param {string} opts.channel_id
  * @param {import('./models/user.js').User} opts.self - the user's own user
  * @param {string} opts.tl_slack_user_id
+ * @param {string} [opts.email] - the email the TL invited under. The TL
+ *        matches the introduction to the invite by this email, so it must
+ *        be the invited address, NOT the new vault's `user@host` placeholder
+ *        self.email. Falls back to self.email only when no invite email is
+ *        available (legacy/manual flows).
  * @returns {Promise<{file_id: string}>}
  */
 export async function onboard_join(storage, client, opts) {
-    const { channel_id, self, tl_slack_user_id } = opts
+    const { channel_id, self, tl_slack_user_id, email = null } = opts
     const sent = await send_payload({
         client, channel_id, recipient_slack_user_id: tl_slack_user_id,
         kind: MESSAGE_KINDS.introduction,
         payload: {
-            email: self.email,
+            email: email || self.email,
             username: self.username,
             pubkey: self.pubkey,
             fingerprint: compute_fingerprint(self),
