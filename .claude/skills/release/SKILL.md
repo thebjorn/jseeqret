@@ -15,14 +15,16 @@ Release jseeqret with bump type: $ARGUMENTS (patch, minor, or major; defaults to
    - Ensure all tests pass (`pnpm test`)
    - Read current version from `package.json`
 
-3. **Bump version** in `package.json`:
+3. **Bump version** in `package.json` and `dkbuild.yml`:
    - Parse current version (semver X.Y.Z)
    - Calculate new version based on bump type
    - Edit `package.json` to set the new version
+   - Edit `dkbuild.yml` — set `package.version` to the same new version
+     (keep it in lock-step with `package.json`; it drifts otherwise)
    - Also update the global npm install: `npm install -g .`
 
 4. **Commit the version bump**:
-   - `git add package.json`
+   - `git add package.json dkbuild.yml`
    - `git commit -m "v<new_version>"`
 
 5. **Create and push the git tag**:
