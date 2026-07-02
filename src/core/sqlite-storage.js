@@ -405,21 +405,67 @@ export class SqliteStorage {
 
     // ---- Secret operations ----
 
+    /**
+     * Does this vault's secrets table carry the v006 `updated_at`
+     * column? Feature-detected per operation (mirrors the Python tool's
+     * `_has_name_column` pattern) so both tools keep working against a
+     * vault that has not run `upgrade` yet.
+     */
+    _secrets_have_updated_at(db) {
+        const rows = this._query_rows(db, 'PRAGMA table_info(secrets)')
+        return rows.some(r => r.name === 'updated_at')
+    }
+
+    /**
+     * Timestamp to store for a secret write: the secret's own value
+     * (imports preserve the sender's modification time) or now.
+     */
+    _secret_stamp(secret) {
+        return secret.updated_at ?? Math.floor(Date.now() / 1000)
+    }
+
     async add_secret(secret) {
         return this._with_db((db) => {
-            db.run(
-                'INSERT INTO secrets (app, env, key, value, type) VALUES (?, ?, ?, ?, ?)',
-                [secret.app, secret.env, secret.key, secret.encrypted_value, secret.type]
-            )
+            if (this._secrets_have_updated_at(db)) {
+                db.run(
+                    'INSERT INTO secrets (app, env, key, value, type, updated_at)'
+                    + ' VALUES (?, ?, ?, ?, ?, ?)',
+                    [secret.app, secret.env, secret.key,
+                     secret.encrypted_value, secret.type,
+                     this._secret_stamp(secret)]
+                )
+            } else {
+                db.run(
+                    'INSERT INTO secrets (app, env, key, value, type) VALUES (?, ?, ?, ?, ?)',
+                    [secret.app, secret.env, secret.key, secret.encrypted_value, secret.type]
+                )
+            }
         }, true)
     }
 
+    /**
+     * Update a secret's value in place. This is the LOCAL-modification
+     * path (edit commands / GUI), so updated_at always stamps now --
+     * unlike add/upsert, which honor the timestamp carried by imports.
+     * (Wording note: "import" followed by an apostrophe in a comment
+     * breaks electron-vite's esm-shim regex, which reads it as an ESM
+     * import statement and splices its shim mid-chunk.)
+     */
     async update_secret(secret) {
         return this._with_db((db) => {
-            db.run(
-                'UPDATE secrets SET value = ? WHERE app = ? AND env = ? AND key = ?',
-                [secret.encrypted_value, secret.app, secret.env, secret.key]
-            )
+            if (this._secrets_have_updated_at(db)) {
+                db.run(
+                    `UPDATE secrets SET value = ?, updated_at = ?
+                     WHERE app = ? AND env = ? AND key = ?`,
+                    [secret.encrypted_value, Math.floor(Date.now() / 1000),
+                     secret.app, secret.env, secret.key]
+                )
+            } else {
+                db.run(
+                    'UPDATE secrets SET value = ? WHERE app = ? AND env = ? AND key = ?',
+                    [secret.encrypted_value, secret.app, secret.env, secret.key]
+                )
+            }
         }, true)
     }
 
@@ -430,28 +476,48 @@ export class SqliteStorage {
      */
     async upsert_secret(secret) {
         return this._with_db((db) => {
-            db.run(
-                `INSERT INTO secrets (app, env, key, value, type)
-                 VALUES (?, ?, ?, ?, ?)
-                 ON CONFLICT(app, env, key) DO UPDATE SET
-                     value = excluded.value,
-                     type = excluded.type`,
-                [secret.app, secret.env, secret.key, secret.encrypted_value, secret.type]
-            )
+            if (this._secrets_have_updated_at(db)) {
+                db.run(
+                    `INSERT INTO secrets (app, env, key, value, type, updated_at)
+                     VALUES (?, ?, ?, ?, ?, ?)
+                     ON CONFLICT(app, env, key) DO UPDATE SET
+                         value = excluded.value,
+                         type = excluded.type,
+                         updated_at = excluded.updated_at`,
+                    [secret.app, secret.env, secret.key,
+                     secret.encrypted_value, secret.type,
+                     this._secret_stamp(secret)]
+                )
+            } else {
+                db.run(
+                    `INSERT INTO secrets (app, env, key, value, type)
+                     VALUES (?, ?, ?, ?, ?)
+                     ON CONFLICT(app, env, key) DO UPDATE SET
+                         value = excluded.value,
+                         type = excluded.type`,
+                    [secret.app, secret.env, secret.key, secret.encrypted_value, secret.type]
+                )
+            }
         }, true)
     }
 
     async fetch_secrets(filters = {}) {
-        const rows = await this.execute_sql(
-            'SELECT app, env, key, value, type FROM secrets',
-            filters
-        )
+        const rows = await this._with_db((db) => {
+            const cols = this._secrets_have_updated_at(db)
+                ? 'app, env, key, value, type, updated_at'
+                : 'app, env, key, value, type'
+            const { clause, params } = this._where_clause(filters)
+            return this._query_rows(
+                db, `SELECT ${cols} FROM secrets${clause}`, params
+            )
+        })
         return rows.map(r => new Secret({
             app: r.app,
             env: r.env,
             key: r.key,
             value: r.value,
             type: r.type,
+            updated_at: r.updated_at ?? null,
             vault_dir: this.vault_dir,
         }))
     }

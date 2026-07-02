@@ -30,7 +30,7 @@ import {
 import { Secret } from './models/secret.js'
 import { User } from './models/user.js'
 import { FilterSpec } from './filter.js'
-import { compute_fingerprint } from './slack/identity.js'
+import { compute_fingerprint, bind_slack_handle } from './slack/identity.js'
 import {
     send_payload,
     poll_envelopes,
@@ -662,9 +662,28 @@ export async function import_user_list(storage, payload, opts) {
         const existing = await storage.fetch_user(user.username)
         if (existing) continue
         await storage.add_user(user)
+        // The username->pubkey binding arrived Box-authenticated by the
+        // OOB-verified TL key, so record the verified slack binding too
+        // -- the mirror of what onboard_approve stamps on the TL side.
+        // Without it, every send BACK to a teammate from a provisioned
+        // vault failed with "not linked to a Slack handle".
+        await _stamp_verified_binding(storage, user)
         imported.push(user)
     }
     return imported
+}
+
+/**
+ * Record the verified slack binding for a user imported through an
+ * authenticated channel (TL-vouched user_list, or an introduction the
+ * human fingerprint-verified). Handle derivation matches
+ * `onboard_approve` / `slack link`: display name beats the machine
+ * identity's account part.
+ */
+function _stamp_verified_binding(storage, user) {
+    return bind_slack_handle(
+        storage, user.username, (user.name || user.username).split('@')[0],
+    )
 }
 
 /**
@@ -692,8 +711,11 @@ export async function import_secret_batch(storage, payload, opts) {
             key: s.key,
             type: s.type || 'str',
             plaintext_value: plaintext,
+            updated_at: s.updated_at ?? null,
             vault_dir: storage.vault_dir,
         })
+        // Provisioning is an authoritative TL push into a fresh vault,
+        // so it upserts rather than running the conflict merge.
         await storage.upsert_secret(secret)
         imported += 1
     }
@@ -993,6 +1015,10 @@ export async function accept_introduction(storage, client, opts) {
         const existing = await storage.fetch_user(user.username)
         if (existing) continue
         await storage.add_user(user)
+        // Both accept paths end on a human verification (voice-call TL
+        // anchor, or the explicit fingerprint ceremony), so the sender
+        // vouches for the list -- record the binding like `slack link`.
+        await _stamp_verified_binding(storage, user)
         imported.push(user)
     }
 

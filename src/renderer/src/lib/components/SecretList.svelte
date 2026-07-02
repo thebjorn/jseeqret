@@ -58,11 +58,46 @@
     }
   }
 
+  // Edit dialog: value only — app:env:key is the secret's identity
+  // (rename = remove + add) and the type stays with the stored value.
+  let edit_target = $state(null)
+  let edit_value = $state('')
+  let saving = $state(false)
+
+  function open_edit(secret) {
+    edit_target = secret
+    edit_value = String(secret.value)
+  }
+
+  async function submit_edit(event) {
+    event.preventDefault()
+    saving = true
+    error = null
+    try {
+      await window.api.updateSecret({
+        app: edit_target.app,
+        env: edit_target.env,
+        key: edit_target.key,
+        value: edit_value,
+      })
+      edit_target = null
+      await loadSecrets()
+    } catch (e) {
+      error = e.message
+    } finally {
+      saving = false
+    }
+  }
+
   function maskValue(val) {
     if (typeof val === 'string' && val.length > 3) {
       return val.slice(0, 2) + '*'.repeat(Math.min(val.length - 2, 20))
     }
     return '***'
+  }
+
+  function fmt_updated(ts) {
+    return ts ? new Date(ts * 1000).toLocaleDateString() : '—'
   }
 
   function handleSort(column) {
@@ -100,12 +135,17 @@
       result = result.filter(s => s.type.toLowerCase().includes(f))
     }
 
-    // Apply sorting
+    // Apply sorting (updated_at is numeric; the rest sort as text)
     if (sortColumn) {
       result = [...result].sort((a, b) => {
-        const va = String(a[sortColumn] ?? '').toLowerCase()
-        const vb = String(b[sortColumn] ?? '').toLowerCase()
-        const cmp = va < vb ? -1 : va > vb ? 1 : 0
+        let cmp
+        if (sortColumn === 'updated_at') {
+          cmp = (a.updated_at ?? 0) - (b.updated_at ?? 0)
+        } else {
+          const va = String(a[sortColumn] ?? '').toLowerCase()
+          const vb = String(b[sortColumn] ?? '').toLowerCase()
+          cmp = va < vb ? -1 : va > vb ? 1 : 0
+        }
         return sortDirection === 'asc' ? cmp : -cmp
       })
     }
@@ -133,6 +173,7 @@
         <th class="sortable" onclick={() => handleSort('key')}>Key{sortIndicator('key')}</th>
         <th>Value</th>
         <th class="sortable" onclick={() => handleSort('type')}>Type{sortIndicator('type')}</th>
+        <th class="sortable" onclick={() => handleSort('updated_at')}>Updated{sortIndicator('updated_at')}</th>
         <th></th>
       </tr>
       <tr class="filter-row">
@@ -141,6 +182,7 @@
         <th><input type="text" bind:value={columnFilters.key} placeholder="filter..." class="col-filter" /></th>
         <th></th>
         <th><input type="text" bind:value={columnFilters.type} placeholder="filter..." class="col-filter" /></th>
+        <th></th>
         <th></th>
       </tr>
     </thead>
@@ -156,9 +198,16 @@
             </code>
           </td>
           <td class="type">{secret.type}</td>
+          <td class="type" title={secret.updated_at
+              ? new Date(secret.updated_at * 1000).toLocaleString() : ''}>
+            {fmt_updated(secret.updated_at)}
+          </td>
           <td class="actions">
             <button class="copy" onclick={() => copy_value(secret)} title="Copy value">
               {copied_id === secret_id(secret) ? '✓' : '⎘'}
+            </button>
+            <button class="edit" onclick={() => open_edit(secret)} title="Edit value">
+              ✎
             </button>
             <button class="delete" onclick={() => removeSecret(secret)} title="Remove">
               ×
@@ -168,13 +217,47 @@
       {/each}
       {#if filteredSecrets.length === 0 && secrets.length > 0}
         <tr>
-          <td colspan="6" class="empty-filtered">No secrets match the column filters.</td>
+          <td colspan="7" class="empty-filtered">No secrets match the column filters.</td>
         </tr>
       {/if}
     </tbody>
   </table>
   <div class="table-footer">
     {filteredSecrets.length} of {secrets.length} secret(s)
+  </div>
+{/if}
+
+{#if edit_target}
+  <div
+    class="backdrop"
+    role="presentation"
+    onclick={(e) => { if (e.target === e.currentTarget) edit_target = null }}
+  >
+    <form class="dialog" onsubmit={submit_edit}>
+      <h2>Edit secret</h2>
+      <div class="identity mono">
+        {edit_target.app}:{edit_target.env}:{edit_target.key}
+        <span class="type-tag">{edit_target.type}</span>
+      </div>
+      <label class="field">
+        <span>Value</span>
+        <input
+          type="text"
+          bind:value={edit_value}
+          class="mono"
+          autocomplete="off"
+          spellcheck="false"
+          required
+        >
+      </label>
+      <div class="dialog-actions">
+        <button type="button" class="ghost"
+          onclick={() => edit_target = null}>Cancel</button>
+        <button type="submit" class="primary" disabled={saving}>
+          {saving ? 'Saving...' : 'Save'}
+        </button>
+      </div>
+    </form>
   </div>
 {/if}
 
@@ -220,6 +303,19 @@
     color: var(--success);
   }
 
+  .edit {
+    background: transparent;
+    color: var(--text-muted);
+    padding: 4px 8px;
+    font-size: 14px;
+    border-radius: 4px;
+  }
+
+  .edit:hover {
+    background: var(--bg-input);
+    color: var(--text);
+  }
+
   .delete {
     background: transparent;
     color: var(--accent);
@@ -231,6 +327,75 @@
   .delete:hover {
     background: var(--accent);
     color: white;
+  }
+
+  .backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+
+  .dialog {
+    width: 460px;
+    max-width: 90vw;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .dialog h2 {
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .identity {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 600;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .type-tag {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    background: var(--bg-input);
+    border-radius: 4px;
+    padding: 1px 6px;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .field input.mono {
+    font-family: var(--font-mono);
+  }
+
+  .dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 4px;
   }
 
   .sortable {

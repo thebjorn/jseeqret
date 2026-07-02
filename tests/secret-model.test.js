@@ -54,7 +54,7 @@ describe('Secret model', () => {
         })
         expect(s.to_plaintext_dict()).toEqual({
             app: 'myapp', env: 'prod', key: 'KEY',
-            type: 'str', value: 'val',
+            type: 'str', value: 'val', updated_at: null,
         })
     })
 

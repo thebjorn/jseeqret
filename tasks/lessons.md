@@ -1,5 +1,53 @@
 # Lessons
 
+## electron-vite: the word import + apostrophe in a comment breaks the build (2026-07)
+
+- A doc comment saying "an import's carried timestamp" made
+  `pnpm build` fail with "Unterminated string literal" deep in the
+  bundled chunk. electron-vite's `vite:esm-shim` plugin finds the LAST
+  ESM import statement with a regex (mlly-style) and appends its
+  CommonJS shim right after it; `import's ...` parses as
+  `import '<specifier>'` whose specifier swallows everything (newlines
+  included) up to the next single quote — a SQL string two functions
+  later — so the shim was spliced into the middle of that string.
+- Symptoms that identify it: per-file esbuild/node parses are clean,
+  an esbuild --bundle of the same entry works, only the electron-vite
+  main/preload chunk fails, and the error frame shows
+  `// -- CommonJS Shims --` right after the "unterminated" line.
+- Fix/rule: in files bundled for main/preload, never write the word
+  import directly followed by an apostrophe in comments or strings.
+  Debug trick that found it: a one-off `renderChunk` dump plugin in
+  electron.vite.config to capture the chunk between plugins.
+
+## Onboarding import skipped the slack-binding stamp (2026-07)
+
+- A freshly provisioned vault could not send BACK to any teammate over
+  Slack: `require_verified_binding` refused with "not linked". The TL
+  side stamps the binding at approve, but `import_user_list` /
+  `accept_introduction` added users WITHOUT it — even though the list
+  arrived Box-authenticated by the voice-call-verified TL key, i.e.
+  with exactly the assurance `slack link` records. Asymmetry between
+  the two sides of a handshake is a smell: whatever trust artifact one
+  side records, check whether the mirror-image flow needs it too.
+- Found in the field (sandbox export), not by tests: every slack-send
+  test used the TL vault, where approve had stamped bindings. Exercise
+  the PROVISIONED vault as a sender, not only as a receiver.
+
+## CSS: descendant selectors leak into nested widgets (2026-07)
+
+- ExportView's generic `.form-group label { display: block;
+  text-transform: uppercase; ... }` and `.form-group input { width:
+  100% }` captured the NESTED `.recipient` checkbox labels too: block
+  display broke their flex row (checkbox on its own line), names came
+  out uppercase/muted, checkboxes stretched full-width. Shipped in
+  v2.4.0; user screenshot caught it.
+- When a form container styles `label`/`input` generically, scope with
+  a child combinator (`.form-group > label`) the moment the group can
+  contain composite widgets — or the widget silently inherits layout.
+- Checking a new component in isolation isn't enough: eyeball each
+  VARIANT of the container it sits in (a checkbox list inside
+  .form-group looked fine in the code, wrong on screen).
+
 ## Slack transport: the mock's one behavioral lie hid a total failure (2026-07)
 
 - `files.uploadV2` shares the file into the channel ASYNCHRONOUSLY —

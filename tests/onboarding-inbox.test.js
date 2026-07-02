@@ -12,7 +12,9 @@ import {
     generate_and_save_key_pair,
 } from '../src/core/crypto/utils.js'
 import { encode_key } from '../src/core/crypto/nacl.js'
-import { compute_fingerprint } from '../src/core/slack/identity.js'
+import {
+    compute_fingerprint, require_verified_binding,
+} from '../src/core/slack/identity.js'
 import { MESSAGE_KINDS } from '../src/core/serializers/envelope.js'
 import { send_payload, poll_envelopes } from '../src/core/slack/transport.js'
 import { transport_selftest } from '../src/core/slack/selftest.js'
@@ -358,6 +360,44 @@ describe('received ack + sender-side cleanup', () => {
         expect(poll.events.find(e => e.kind === 'received')).toBeUndefined()
         const sent = await slack_config_get(tl_storage, 'onboard.sent.newbie@test.com')
         expect(sent.length).toBeGreaterThan(0)
+    })
+})
+
+describe('verified bindings stamped on authenticated import', () => {
+    // Regression: a provisioned vault could not send BACK to any teammate
+    // ("not linked to a Slack handle") because import never recorded the
+    // binding, even though the list arrived on the OOB-verified TL key.
+    it('provisioned teammates are immediately sendable via Slack', async () => {
+        await complete_handshake()
+        await onboard_provision_poll(user_storage, ws.client('U_USER'), {
+            channel_id: CHANNEL, self_user_id: 'U_USER',
+            receiver_private_key: user_kp.secretKey,
+            trusted_pubkey: tl_self.pubkey,
+        })
+
+        const lead = await require_verified_binding(user_storage, 'lead@host')
+        expect(lead.slack_handle).toBe('lead')
+        const alice = await require_verified_binding(user_storage, 'alice@host')
+        expect(alice.slack_handle).toBe('alice')
+    })
+
+    it('accepted introductions are immediately sendable via Slack', async () => {
+        await complete_handshake()
+        const [intro] = await inbox_introductions(alice_storage, ws.client('U_ALICE'), {
+            channel_id: CHANNEL, self_user_id: 'U_ALICE',
+            receiver_private_key: alice_kp.secretKey,
+            trusted_pubkey: tl_self.pubkey,
+        })
+        await accept_introduction(alice_storage, ws.client('U_ALICE'), {
+            channel_id: CHANNEL, payload: intro.payload,
+            receiver_private_key: alice_kp.secretKey,
+            trusted_pubkey: tl_self.pubkey,
+        })
+
+        const bound = await require_verified_binding(alice_storage, 'newbie@host')
+        expect(bound.slack_handle).toBe('newbie')
+        expect(bound.user.slack_key_fingerprint)
+            .toBe(compute_fingerprint(bound.user))
     })
 })
 

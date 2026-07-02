@@ -16,6 +16,38 @@
     let raw_content = $derived(input_mode === 'paste' ? paste_content : file_content)
     let has_content = $derived(raw_content.trim().length > 0)
 
+    // Conflicts: secrets that already exist locally with a DIFFERENT
+    // value. The first import call writes nothing and returns them; the
+    // human picks a winner per secret, then we re-submit with the
+    // resolutions. Timestamps are advisory (they pick the defaults).
+    let conflicts = $state([])
+    let show_values = $state(false)
+
+    function fmt_ts(ts) {
+        return ts ? new Date(ts * 1000).toLocaleString() : 'unknown'
+    }
+
+    function mask(val) {
+        const s = String(val)
+        return s.length > 3
+            ? s.slice(0, 2) + '*'.repeat(Math.min(s.length - 2, 12))
+            : '***'
+    }
+
+    function default_choice(c) {
+        // "newer" wins the default; missing/ties keep the local value.
+        return (c.incoming_updated_at ?? 0) > (c.local_updated_at ?? 0)
+            ? 'theirs' : 'mine'
+    }
+
+    function set_all(choice) {
+        conflicts = conflicts.map(c => ({ ...c, choice }))
+    }
+
+    function set_newer() {
+        conflicts = conflicts.map(c => ({ ...c, choice: default_choice(c) }))
+    }
+
     async function load_users() {
         try {
             users = await window.api.getUsers()
@@ -45,7 +77,7 @@
         reader.readAsText(file)
     }
 
-    async function handle_import() {
+    async function handle_import(resolutions = null) {
         if (!has_content) {
             error = 'No content to import'
             return
@@ -60,9 +92,23 @@
                 from_user: sender || null,
                 serializer,
                 content: raw_content,
+                resolutions,
             })
+            if (result.needs_resolution) {
+                conflicts = result.conflicts.map(c => ({
+                    ...c,
+                    choice: default_choice(c),
+                }))
+                error = `${conflicts.length} secret(s) already exist with a`
+                    + ' different value — choose which to keep below.'
+                    + ' Nothing has been imported yet.'
+                return
+            }
+            conflicts = []
             import_count = result.count
-            success = `Successfully imported ${result.count} secret(s)`
+            success = `Imported ${result.count} secret(s)`
+                + ` (${result.added} added, ${result.updated} updated,`
+                + ` ${result.kept} kept local, ${result.skipped} identical)`
             paste_content = ''
             file_content = ''
             file_name = ''
@@ -71,6 +117,14 @@
         } finally {
             importing = false
         }
+    }
+
+    function apply_resolutions() {
+        const resolutions = {}
+        for (const c of conflicts) {
+            resolutions[c.id] = c.choice
+        }
+        handle_import(resolutions)
     }
 
     $effect(() => {
@@ -89,6 +143,82 @@
     {/if}
     {#if success}
         <div class="alert success">{success}</div>
+    {/if}
+
+    {#if conflicts.length > 0}
+        <div class="conflict-panel">
+            <div class="conflict-head">
+                <h2>Resolve conflicts</h2>
+                <div class="bulk">
+                    <button class="bulk-btn" onclick={() => set_all('mine')}>
+                        Keep all mine
+                    </button>
+                    <button class="bulk-btn" onclick={() => set_all('theirs')}>
+                        Take all theirs
+                    </button>
+                    <button class="bulk-btn" onclick={set_newer}>
+                        Take newer
+                    </button>
+                    <label class="show-values">
+                        <input type="checkbox" bind:checked={show_values}>
+                        Show values
+                    </label>
+                </div>
+            </div>
+            <p class="conflict-note">
+                Timestamps show when each side last changed the value —
+                advisory only, you decide. "Take newer" is preselected
+                where the incoming copy is more recent.
+            </p>
+            <table class="conflict-table">
+                <thead>
+                    <tr>
+                        <th>Secret</th>
+                        <th>Mine (local)</th>
+                        <th>Theirs (incoming)</th>
+                        <th>Keep</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {#each conflicts as c (c.id)}
+                        <tr>
+                            <td class="mono">{c.id}</td>
+                            <td class="val" class:chosen={c.choice === 'mine'}>
+                                <code>{show_values ? c.local_value : mask(c.local_value)}</code>
+                                <span class="ts">{fmt_ts(c.local_updated_at)}</span>
+                            </td>
+                            <td class="val" class:chosen={c.choice === 'theirs'}>
+                                <code>{show_values ? c.incoming_value : mask(c.incoming_value)}</code>
+                                <span class="ts">{fmt_ts(c.incoming_updated_at)}</span>
+                            </td>
+                            <td>
+                                <div class="choice-group" role="group" aria-label="Keep">
+                                    <button
+                                        class:active={c.choice === 'mine'}
+                                        onclick={() => c.choice = 'mine'}
+                                    >
+                                        Mine
+                                    </button>
+                                    <button
+                                        class:active={c.choice === 'theirs'}
+                                        onclick={() => c.choice = 'theirs'}
+                                    >
+                                        Theirs
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    {/each}
+                </tbody>
+            </table>
+            <button
+                class="primary apply-btn"
+                disabled={importing}
+                onclick={apply_resolutions}
+            >
+                {importing ? 'Importing...' : 'Apply resolutions & import'}
+            </button>
+        </div>
     {/if}
 
     <div class="import-layout">
@@ -187,7 +317,7 @@
 
                 <button
                     class="primary import-btn"
-                    onclick={handle_import}
+                    onclick={() => handle_import()}
                     disabled={importing || !has_content}
                 >
                     {#if importing}
@@ -243,6 +373,131 @@
         grid-template-columns: 1fr 1.2fr;
         gap: 20px;
         align-items: start;
+    }
+
+    /* -- conflict resolution panel -- */
+
+    .conflict-panel {
+        background: var(--bg-card);
+        border: 1px solid var(--warning);
+        border-radius: var(--radius);
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .conflict-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .conflict-head h2 {
+        font-size: 16px;
+        font-weight: 600;
+    }
+
+    .bulk {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .bulk-btn {
+        padding: 5px 12px;
+        background: transparent;
+        color: var(--text-muted);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        font-size: 12px;
+        cursor: pointer;
+    }
+
+    .bulk-btn:hover {
+        color: var(--text);
+        border-color: var(--accent);
+    }
+
+    .show-values {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--text-muted);
+        cursor: pointer;
+        margin-left: 8px;
+    }
+
+    .conflict-note {
+        font-size: 12px;
+        color: var(--text-muted);
+        line-height: 1.5;
+    }
+
+    .conflict-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+    }
+
+    .conflict-table .mono {
+        font-family: var(--font-mono);
+        font-weight: 600;
+    }
+
+    .conflict-table .val {
+        opacity: 0.55;
+    }
+
+    .conflict-table .val.chosen {
+        opacity: 1;
+    }
+
+    .conflict-table .val code {
+        display: block;
+        font-family: var(--font-mono);
+        font-size: 12px;
+        color: var(--success);
+        word-break: break-all;
+    }
+
+    .conflict-table .ts {
+        font-size: 11px;
+        color: var(--text-muted);
+    }
+
+    .choice-group {
+        display: inline-flex;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        overflow: hidden;
+    }
+
+    .choice-group button {
+        padding: 4px 10px;
+        background: var(--bg-input);
+        color: var(--text-muted);
+        border: none;
+        border-radius: 0;
+        font-size: 12px;
+        cursor: pointer;
+    }
+
+    .choice-group button:not(:last-child) {
+        border-right: 1px solid var(--border);
+    }
+
+    .choice-group button.active {
+        background: var(--accent);
+        color: #fff;
+    }
+
+    .apply-btn {
+        align-self: flex-start;
+        padding: 10px 18px;
     }
 
     .form-section {

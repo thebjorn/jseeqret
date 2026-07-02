@@ -411,8 +411,10 @@
         margin-bottom: 16px;
     }
 
-    .form-group label,
-    .form-group .field-label {
+    /* Direct children only: the nested .recipient labels/checkboxes
+       must keep their own flex layout and casing. */
+    .form-group > label,
+    .form-group > .field-label {
         display: block;
         font-size: 12px;
         font-weight: 600;
@@ -422,8 +424,8 @@
         margin-bottom: 6px;
     }
 
-    .form-group select,
-    .form-group input {
+    .form-group > select,
+    .form-group > input {
         width: 100%;
     }
 
@@ -446,7 +448,14 @@
         padding: 6px 8px;
         border-radius: 4px;
         font-size: 14px;
+        color: var(--text);
         cursor: pointer;
+    }
+
+    .recipient input[type='checkbox'] {
+        width: auto;
+        flex-shrink: 0;
+        accent-color: var(--accent);
     }
 
     .recipient:hover {
@@ -466,6 +475,10 @@
         margin-left: auto;
         color: var(--text-muted);
         font-size: 12px;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .filter-input {

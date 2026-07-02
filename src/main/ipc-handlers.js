@@ -24,6 +24,9 @@ import {
     registry_use, registry_default, registry_resolve,
 } from '../core/vault-registry.js'
 import { run_migrations, upgrade_db } from '../core/migrations.js'
+import {
+    plan_secret_merge, apply_secret_merge, secret_id,
+} from '../core/merge.js'
 import { harden_vault_windows } from '../core/fileutils.js'
 import { SlackClient } from '../core/slack/client.js'
 import {
@@ -409,7 +412,11 @@ export function register_ipc_handlers() {
         return { results }
     })
 
-    handle('secrets:import', async (_event, { from_user, serializer, content }) => {
+    // Two-phase import: the first call classifies the payload against
+    // the vault and, when values diverge, returns the conflicts WITHOUT
+    // writing anything. The renderer collects per-secret choices and
+    // calls again with `resolutions` ("app:env:key" -> 'mine'|'theirs').
+    handle('secrets:import', async (_event, { from_user, serializer, content, resolutions }) => {
         const storage = get_storage()
         const vault_dir = get_active_vault_dir()
         const receiver_private_key = decode_key(load_private_key_str(vault_dir))
@@ -434,13 +441,43 @@ export function register_ipc_handlers() {
         })
 
         const secrets = ser.load(content)
-        let count = 0
-        for (const secret of secrets) {
-            await storage.add_secret(secret)
-            count++
+        const plan = await plan_secret_merge(storage, secrets)
+
+        if (plan.conflicts.length > 0 && !resolutions) {
+            return {
+                needs_resolution: true,
+                additions: plan.additions.length,
+                identical: plan.identical.length,
+                conflicts: plan.conflicts.map(c => ({
+                    app: c.incoming.app,
+                    env: c.incoming.env,
+                    key: c.incoming.key,
+                    id: secret_id(c.incoming),
+                    local_value: String(c.local.get_value()),
+                    incoming_value: String(c.incoming.get_value()),
+                    local_updated_at: c.local.updated_at ?? null,
+                    incoming_updated_at: c.incoming.updated_at ?? null,
+                })),
+            }
         }
 
-        return { count }
+        const r = await apply_secret_merge(storage, plan, {
+            resolutions: resolutions || {},
+        })
+        if (r.unresolved.length > 0) {
+            throw new Error(
+                `${r.unresolved.length} conflict(s) left unresolved;`
+                + ' nothing was overwritten for them.'
+            )
+        }
+        return {
+            needs_resolution: false,
+            count: r.added + r.updated,
+            added: r.added,
+            updated: r.updated,
+            kept: r.kept,
+            skipped: r.skipped,
+        }
     })
 
     handle('vault:introduction', async () => {

@@ -27,6 +27,14 @@
     let verify_checked = $state(false)
     let verify_typed = $state('')
 
+    // Fingerprint ceremony to link an existing user for Slack sending
+    // (vaults provisioned before bindings were stamped at import, or
+    // manually added users). The main process re-validates the typed
+    // fingerprint before binding.
+    let link_target = $state(null)
+    let link_checked = $state(false)
+    let link_typed = $state('')
+
     // Add / edit dialogs
     let show_add = $state(false)
     let add_form = $state({ username: '', email: '', pubkey: '', name: '' })
@@ -104,6 +112,45 @@
 
     function dismiss(intro) {
         dismissed = new Set([...dismissed, intro.file_id])
+    }
+
+    // A user is sendable over Slack only with a fresh verified binding:
+    // linked, and the stored fingerprint still matches the current key.
+    function is_linked(user) {
+        return !!user.slack_verified_at
+            && user.slack_key_fingerprint === user.fingerprint
+    }
+
+    function open_link(user) {
+        link_target = user
+        link_checked = false
+        link_typed = ''
+    }
+
+    const can_link = $derived(
+        link_target && link_checked
+        && link_typed.trim() === link_target.fingerprint && !busy
+    )
+
+    async function submit_link() {
+        if (!can_link) return
+        busy = true
+        error = null
+        notice = null
+        try {
+            await window.api.slackLink({
+                username: link_target.username,
+                handle: (link_target.name || link_target.username).split('@')[0],
+                fingerprint: link_typed.trim(),
+            })
+            notice = `Linked ${link_target.username} for Slack sending.`
+            link_target = null
+            await load_users()
+        } catch (e) {
+            error = e.message
+        } finally {
+            busy = false
+        }
     }
 
     async function submit_add(event) {
@@ -375,11 +422,26 @@
                             {/if}
                         </td>
                         <td>{user.email}</td>
-                        <td class="mono fingerprint">{user.fingerprint}</td>
+                        <td
+                            class="mono fingerprint"
+                            class:unlinked={!user.is_owner && !is_linked(user)}
+                            title={user.is_owner || is_linked(user)
+                                ? 'Verified for Slack sending'
+                                : 'Not linked — verify to send via Slack'}
+                        >
+                            {user.fingerprint}
+                        </td>
                         <td class="pubkey" title={user.pubkey}>
                             <code>{user.pubkey.slice(0, 20)}...</code>
                         </td>
                         <td class="actions">
+                            {#if !user.is_owner && !is_linked(user)}
+                                <button class="row-btn"
+                                    title="Verify fingerprint & link for Slack sending"
+                                    onclick={() => open_link(user)}>
+                                    Link
+                                </button>
+                            {/if}
                             <button class="row-btn" title="Edit"
                                 onclick={() => open_edit(user)}>
                                 Edit
@@ -484,6 +546,43 @@
                     })}
                 >
                     {accepting ? 'Accepting...' : 'Accept & import'}
+                </button>
+            </div>
+        </div>
+    </div>
+{/if}
+
+{#if link_target}
+    <div
+        class="backdrop"
+        role="presentation"
+        onclick={(e) => { if (e.target === e.currentTarget) link_target = null }}
+    >
+        <div class="dialog" role="dialog" aria-modal="true" tabindex="-1">
+            <h2>Link {link_target.name || link_target.username} for Slack</h2>
+            <p class="muted">
+                Verify this fingerprint OUT-OF-BAND on a voice call with
+                {link_target.name || link_target.username} — it must match
+                what they see on their own Introduction page. Never trust a
+                fingerprint that came over Slack.
+            </p>
+            <div class="big-fp linkfp">{link_target.fingerprint}</div>
+            <label class="check">
+                <input type="checkbox" bind:checked={link_checked}>
+                I verified this fingerprint on a voice call
+            </label>
+            <label class="field">
+                <span>Type the fingerprint back to confirm</span>
+                <input type="text" bind:value={link_typed} class="mono"
+                    placeholder={link_target.fingerprint}
+                    autocomplete="off" spellcheck="false">
+            </label>
+            <div class="dialog-actions">
+                <button class="ghost" onclick={() => link_target = null}>
+                    Cancel
+                </button>
+                <button class="primary" disabled={!can_link} onclick={submit_link}>
+                    {busy ? 'Linking...' : 'Link for Slack sending'}
                 </button>
             </div>
         </div>
@@ -644,6 +743,14 @@
         color: var(--success);
         font-weight: 600;
         letter-spacing: 0.08em;
+    }
+
+    .fingerprint.unlinked {
+        color: var(--text-muted);
+    }
+
+    .big-fp.linkfp {
+        color: var(--success);
     }
 
     .pubkey code {

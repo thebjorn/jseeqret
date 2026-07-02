@@ -41,6 +41,9 @@ export class JsonCryptSerializer extends BaseSerializer {
                 key: s.key,
                 type: s.type || 'str',
                 plaintext_value: plaintext,
+                // Sender's modification time (v006 exports); null from
+                // older tools. Advisory input to the import merge.
+                updated_at: s.updated_at ?? null,
             })
         })
     }

@@ -31,8 +31,11 @@ import {
     slack_config_snapshot,
 } from '../../core/slack/config.js'
 import { find_user_by_slack_handle } from '../../core/slack/identity.js'
+import {
+    plan_secret_merge, apply_secret_merge, secret_id, MERGE_STRATEGIES,
+} from '../../core/merge.js'
 
-async function _run_once(storage, snap) {
+async function _run_once(storage, snap, strategy = null) {
     const client = new SlackClient(snap.user_token)
     const vault_dir = get_seeqret_dir()
     const receiver_private_key = decode_key(load_private_key_str(vault_dir))
@@ -80,10 +83,21 @@ async function _run_once(storage, snap) {
         const text = msg.ciphertext.toString('utf-8')
         const secrets = serializer.load(text)
 
-        for (const secret of secrets) {
-            await storage.upsert_secret(secret)
-            imported++
+        // A blob whose secrets diverge from local values is a conflict:
+        // without an explicit --strategy the whole blob fails closed --
+        // nothing imported, thread NOT deleted, cursor NOT advanced --
+        // so the next run (with a strategy) sees it again.
+        const plan = await plan_secret_merge(storage, secrets)
+        if (plan.conflicts.length > 0 && !strategy) {
+            const ids = plan.conflicts.map(c => secret_id(c.incoming))
+            throw new Error(
+                `blob from ${sender.username} conflicts with local values`
+                + ` (${ids.join(', ')}). Re-run with`
+                + ' --strategy mine|theirs|newer.'
+            )
         }
+        const r = await apply_secret_merge(storage, plan, { strategy })
+        imported += r.added + r.updated
 
         // Delete the thread. If this fails we fall through and re-raise
         // so last_seen_ts is NOT advanced.
@@ -120,10 +134,19 @@ export const receive_command = new Command('receive')
     .option('--via <transport>', 'transport: slack', 'slack')
     .option('--watch', 'poll continuously until interrupted', false)
     .option('--interval <seconds>', 'poll interval in seconds (with --watch)', '30')
+    .option('--strategy <strategy>',
+        'conflict resolution: mine, theirs, or newer (default: fail closed)')
     .action(async (opts) => {
         require_vault()
         if (opts.via !== 'slack') {
             console.error(`Error: unknown transport '${opts.via}'`)
+            process.exit(1)
+        }
+        if (opts.strategy && !MERGE_STRATEGIES.includes(opts.strategy)) {
+            console.error(
+                `Error: unknown strategy '${opts.strategy}'`
+                + ` (expected ${MERGE_STRATEGIES.join('/')}).`
+            )
             process.exit(1)
         }
 
@@ -138,7 +161,7 @@ export const receive_command = new Command('receive')
 
         const once = async () => {
             try {
-                const n = await _run_once(storage, snap)
+                const n = await _run_once(storage, snap, opts.strategy || null)
                 if (n > 0) {
                     console.log(`Imported ${n} secret(s) from Slack.`)
                 }

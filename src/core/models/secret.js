@@ -28,8 +28,14 @@ export class Secret {
      * @param {string} [opts.type='str']
      * @param {string} [opts.plaintext_value] - if provided, will be encrypted
      * @param {string} [opts.vault_dir] - vault directory (defaults to get_seeqret_dir())
+     * @param {number|null} [opts.updated_at] - unix seconds of the last
+     *        value change. Advisory merge metadata (migration v006):
+     *        storage stamps it when absent, exports carry it along.
      */
-    constructor({ app, env, key, value = null, type = 'str', plaintext_value = null, vault_dir = null }) {
+    constructor({
+        app, env, key, value = null, type = 'str',
+        plaintext_value = null, vault_dir = null, updated_at = null,
+    }) {
         if (!value && !plaintext_value) {
             throw new Error('value or plaintext_value is required')
         }
@@ -38,6 +44,7 @@ export class Secret {
         this.env = env
         this.key = key
         this.type = type
+        this.updated_at = updated_at
         this._vault_dir = vault_dir
         this._value = value
 
@@ -124,6 +131,7 @@ export class Secret {
             key: this.key,
             value: this.encrypt_value(sender_private_key, recipient_public_key),
             type: this.type,
+            updated_at: this.updated_at ?? null,
         }
     }
 
@@ -134,6 +142,7 @@ export class Secret {
             key: this.key,
             type: this.type,
             value: this.get_value(),
+            updated_at: this.updated_at ?? null,
         }
     }
 

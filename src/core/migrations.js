@@ -191,6 +191,24 @@ function init_db_v005(db) {
 }
 
 /**
+ * Migration 006: Secret modification timestamp.
+ *
+ * `updated_at` (unix seconds, nullable) records when a secret's value
+ * last changed. It rides along in exports so an import can tell whose
+ * copy of a diverged secret is newer -- advisory input to the merge
+ * flow, never an automatic winner-picker (clocks skew, and timestamps
+ * alone cannot prove "both changed"). Nullable, so vaults and exports
+ * written by older versions of either tool stay readable.
+ */
+function init_db_v006(db) {
+    if (!column_exists(db, 'secrets', 'updated_at')) {
+        db.run('ALTER TABLE secrets ADD COLUMN updated_at INTEGER')
+    }
+
+    db.run('INSERT OR IGNORE INTO migrations (version) VALUES (6)')
+}
+
+/**
  * Run all pending migrations.
  * @param {string} vault_dir
  * @param {string} username
@@ -222,6 +240,10 @@ export async function run_migrations(vault_dir, username, email, pubkey) {
 
         if (version < 5) {
             init_db_v005(db)
+        }
+
+        if (version < 6) {
+            init_db_v006(db)
         }
 
         save_db(db, db_path)
@@ -265,6 +287,12 @@ export async function upgrade_db(vault_dir) {
         if (version < 5) {
             init_db_v005(db)
             console.log('Upgraded to version 5.')
+            upgraded = true
+        }
+
+        if (version < 6) {
+            init_db_v006(db)
+            console.log('Upgraded to version 6.')
             upgraded = true
         }
 
