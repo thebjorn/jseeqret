@@ -54,21 +54,36 @@
             step = 'slack'
             return
         }
-        // Vault + Slack ready: load identity, then try to pick up any
-        // provisioning already waiting (e.g. approved while we were away).
+        // Vault + Slack ready: load identity, then check where we are.
         try {
             me = await window.api.getIntroduction()
         } catch { /* not registered yet — fine */ }
 
+        // Trust on file means the fingerprint was already verified: pick
+        // up any provisioning waiting for us (e.g. approved while away).
+        // Asked explicitly -- probing provision-poll and catching its
+        // throw logged a scary-looking error on every fresh install.
+        let trusted = false
         try {
-            const r = await window.api.onboardProvisionPoll()
-            progress = r
-            if (r.complete) { step = 'done'; return }
+            const t = await window.api.onboardTrustStatus()
+            trusted = t.has_trust
+        } catch (e) {
+            error = e.message
+        }
+        if (trusted) {
+            try {
+                const r = await window.api.onboardProvisionPoll()
+                progress = r
+                if (r.complete) { step = 'done'; return }
+            } catch (e) {
+                // Transient poll failure: stay in waiting -- the poll
+                // loop retries every 10s. Trust is already anchored, so
+                // falling back to the introduce step would be wrong.
+                error = e.message
+            }
             step = 'waiting'
             start_waiting()
             return
-        } catch {
-            // No trust on file yet — we still need to introduce ourselves.
         }
         try {
             invite = await window.api.onboardReceiveInvite()

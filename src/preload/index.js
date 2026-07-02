@@ -46,6 +46,7 @@ const api = {
     onboardApprove: (data) => ipcRenderer.invoke('onboard:approve', data),
 
     // Onboarding — new-user side
+    onboardTrustStatus: () => ipcRenderer.invoke('onboard:trust-status'),
     onboardReceiveInvite: () => ipcRenderer.invoke('onboard:receive-invite'),
     onboardIntroduce: (data) => ipcRenderer.invoke('onboard:introduce', data),
     onboardJoin: (data) => ipcRenderer.invoke('onboard:join', data),

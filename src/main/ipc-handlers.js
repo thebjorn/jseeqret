@@ -530,11 +530,24 @@ export function register_ipc_handlers() {
 
     // -- Onboarding: new-user side (Phase 6) ---------------------------
 
+    // Cheap local probe for the wizard: is a verified team-lead key on
+    // file? Asking this directly keeps the expected "not yet" answer out
+    // of the error log (provision-poll used to throw for it).
+    handle('onboard:trust-status', async () => {
+        await ensure_migrated(get_active_vault_dir())
+        const trust = await get_tl_trust(get_storage())
+        return { has_trust: !!trust.tl_pubkey }
+    })
+
     handle('onboard:receive-invite', async () => {
         const { storage, snap, client } = await slack_ctx()
-        return onboard_receive_invite(storage, client, {
+        const invite = await onboard_receive_invite(storage, client, {
             channel_id: snap.channel_id, self_user_id: snap.user_id,
         })
+        log_info(invite
+            ? `onboard:receive-invite invite for ${invite.email} (tl ${invite.tl_slack_user_id})`
+            : 'onboard:receive-invite no invite waiting in the channel')
+        return invite
     })
 
     // Sends the introduction WITHOUT anchoring any trust: it only
