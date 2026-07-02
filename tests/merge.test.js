@@ -34,9 +34,14 @@ beforeEach(async () => {
     generate_symmetric_key(vault_dir)
     await run_migrations(vault_dir, 'me@host', 'me@test.com', encode_key(kp.publicKey))
     storage = new SqliteStorage('seeqrets.db', vault_dir)
+    // Serializer-loaded secrets carry no explicit vault_dir and fall
+    // back to the default vault -- pin it, or the test only passes on
+    // machines that happen to have one (it broke CI).
+    process.env.JSEEQRET = vault_dir
 })
 
 afterEach(() => {
+    delete process.env.JSEEQRET
     try { fs.rmSync(vault_dir, { recursive: true, force: true }) } catch { /* ignore */ }
 })
 
