@@ -1,5 +1,22 @@
 # Lessons
 
+## Code signing: "Successfully signed" says nothing about WHO signed (2026-07)
+
+- `signtool sign /a` (auto-select) picked a stray self-signed
+  `trust_<guid>` cert from the store instead of the Sectigo EV token
+  cert — no PIN prompt, exit 0, "Successfully signed", and an untrusted
+  installer went onto the v2.3.0 release before the missing PIN prompt
+  raised suspicion. The signer identity was printed right there in the
+  output ("Issued to: trust_59d2…") and I didn't read it.
+- Fixes: sign.js pins subject+issuer (`/n 'Norsk Test as' /i Sectigo`)
+  and runs `signtool verify /pa` after every sign (untrusted chain =
+  build failure). Release skill now requires checking
+  `Get-AuthenticodeSignature` status + signer CN before upload.
+- General pattern: when a tool selects a credential/key implicitly,
+  verify WHICH one it selected, not just that the operation succeeded.
+  Absence of an expected interactive prompt (PIN, 2FA) is a red flag,
+  not a convenience.
+
 ## Onboarding: wizard unmounted itself; GUI flows need lifecycle state (2026-07)
 
 - **Deriving "show the wizard" from `vault_status.initialized` was a

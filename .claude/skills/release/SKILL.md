@@ -47,6 +47,15 @@ Release jseeqret with bump type: $ARGUMENTS (patch, minor, or major; defaults to
      `rm -rf dist` (PowerShell: `Remove-Item dist/* -Recurse -Force`)
    - `pnpm dist:nsis` — builds + signs; emits a matched set in `dist/`:
      `jseeqret-setup-<new_version>.exe`, `.exe.blockmap`, and `latest.yml`
+   - **Check WHO signed before uploading** — "Successfully signed" is not
+     enough. `sign.js` pins the cert (subject `Norsk Test as`, issuer
+     Sectigo) and runs `signtool verify /pa`, but belt-and-suspenders:
+     `(Get-AuthenticodeSignature dist/jseeqret-setup-<new_version>.exe).Status`
+     must be `Valid` and the signer CN `Norsk Test as`. If no SafeNet PIN
+     prompt appeared and the token wasn't already unlocked this session,
+     be suspicious — a stray store cert may have signed (this shipped a
+     bad v2.3.0 installer once; auto-select `/a` grabbed a self-signed
+     `trust_<guid>` cert).
    - Upload the **matched trio with explicit filenames**:
      `gh release upload v<new_version> dist/jseeqret-setup-<new_version>.exe dist/jseeqret-setup-<new_version>.exe.blockmap dist/latest.yml --clobber`
 
