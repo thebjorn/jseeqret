@@ -70,3 +70,8 @@ export function log_info(...parts) {
 export function log_error(...parts) {
     console.error(_write('error', parts).trimEnd())
 }
+
+/** File-only (no console echo) -- high-volume core tracing. */
+export function log_trace(...parts) {
+    _write('trace', parts)
+}

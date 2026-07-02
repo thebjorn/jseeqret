@@ -18,6 +18,26 @@
  */
 
 import { WebClient } from '@slack/web-api'
+import { trace } from '../trace.js'
+
+/**
+ * Extract the ts of the message that shares `file` into `channel_id`,
+ * or null if the share has not materialized yet. NEVER substitute
+ * `file.timestamp` -- that is the file's creation time (integer
+ * seconds), not a message ts, and anchoring the recipient mention to
+ * it detaches the mention from the file's thread so the poller can
+ * never match it.
+ */
+function _share_ts(file, channel_id) {
+    if (!file || !file.shares) return null
+    for (const scope of ['private', 'public']) {
+        const shares = file.shares[scope]?.[channel_id]
+        if (shares && shares.length > 0 && shares[0].ts) {
+            return shares[0].ts
+        }
+    }
+    return null
+}
 
 export class SlackClient {
     /**
@@ -32,11 +52,15 @@ export class SlackClient {
         this.web = new WebClient(token, {
             retryConfig: opts.retryConfig, // undefined = default (10 retries w/ backoff)
         })
+        // Share polling knobs (tests dial these down).
+        this.share_poll_attempts = opts.share_poll_attempts ?? 20
+        this.share_poll_delay_ms = opts.share_poll_delay_ms ?? 500
     }
 
     /** `auth.test` -> { ok, team_id, team, user_id, user, url } */
     async auth_test() {
         const r = await this.web.auth.test()
+        trace(`slack auth.test -> ok=${r.ok} user=${r.user_id} team=${r.team_id}`)
         return {
             ok: r.ok,
             team_id: r.team_id,
@@ -57,9 +81,11 @@ export class SlackClient {
             exclude_archived: true,
             limit: 200,
         })
-        return (r.channels || [])
+        const channels = (r.channels || [])
             .filter(c => c.is_member)
             .map(c => ({ id: c.id, name: c.name }))
+        trace(`slack conversations.list -> ${channels.length} private member channels`)
+        return channels
     }
 
     /**
@@ -71,6 +97,7 @@ export class SlackClient {
         try {
             const r = await this.web.users.lookupByEmail({ email })
             if (r.user) {
+                trace(`slack users.lookupByEmail ${email} -> ${r.user.id} (@${r.user.name})`)
                 return {
                     id: r.user.id,
                     name: r.user.name,
@@ -80,6 +107,7 @@ export class SlackClient {
         } catch (e) {
             if (e?.data?.error !== 'users_not_found') throw e
         }
+        trace(`slack users.lookupByEmail ${email} -> not found`)
         return null
     }
 
@@ -93,6 +121,7 @@ export class SlackClient {
      * @returns {Promise<{file_id: string, channel_id: string, ts: string}>}
      */
     async upload_blob({ channel_id, filename, content_bytes }) {
+        trace(`slack files.uploadV2 ${filename} (${content_bytes.length}b) -> ${channel_id}`)
         const r = await this.web.files.uploadV2({
             channel_id,
             filename,
@@ -116,18 +145,25 @@ export class SlackClient {
             throw new Error('files.uploadV2 returned no file info')
         }
 
-        // The share info contains the ts of the message that announces the
-        // upload in the channel. Depending on SDK version it can live under
-        // `shares.private.<channel>.[0].ts` or be returned as `ts` directly.
-        let ts = null
-        const priv = first_file.shares?.private?.[channel_id]
-        if (priv && priv.length > 0) {
-            ts = priv[0].ts
+        // We need the ts of the MESSAGE that shares the file into the
+        // channel (the thread anchor for the recipient mention). Sharing
+        // happens asynchronously on Slack's side, so the uploadV2
+        // response usually carries an empty `shares` -- poll files.info
+        // until the share message exists. The old fallback to
+        // `file.timestamp` was the bug that made every real-Slack
+        // envelope unmatchable: it is a creation time, not a message ts,
+        // so the mention landed outside the file's thread.
+        let ts = _share_ts(first_file, channel_id)
+        let polls = 0
+        for (; !ts && polls < this.share_poll_attempts; polls++) {
+            await new Promise(res => setTimeout(res, this.share_poll_delay_ms))
+            const info = await this.web.files.info({ file: first_file.id })
+            ts = _share_ts(info.file, channel_id)
         }
-        if (!ts && first_file.timestamp) {
-            ts = String(first_file.timestamp)
-        }
+        trace(`slack upload ${first_file.id}: share ts=${ts} after ${polls} info polls`)
 
+        // ts may still be null; send_blob fails closed on that (deletes
+        // the orphaned ciphertext and throws).
         return {
             file_id: first_file.id,
             channel_id,
@@ -145,6 +181,7 @@ export class SlackClient {
             thread_ts,
             text,
         })
+        trace(`slack chat.postMessage thread=${thread_ts} "${text}" -> ts=${r.ts}`)
         return { ts: r.ts }
     }
 
@@ -175,6 +212,8 @@ export class SlackClient {
         } while (cursor)
 
         // Slack returns newest-first; reverse so callers can process in order.
+        trace(`slack conversations.history ${channel_id} oldest=${oldest_ts}`
+            + ` -> ${all.length} messages`)
         return all.reverse()
     }
 
@@ -212,16 +251,19 @@ export class SlackClient {
             )
         }
         const array_buf = await res.arrayBuffer()
+        trace(`slack file download -> ${array_buf.byteLength}b`)
         return Buffer.from(array_buf)
     }
 
     /** Delete a file (fails closed on error — caller handles). */
     async delete_file(file_id) {
+        trace(`slack files.delete ${file_id}`)
         await this.web.files.delete({ file: file_id })
     }
 
     /** Delete a message from a channel. */
     async delete_message({ channel_id, ts }) {
+        trace(`slack chat.delete ${channel_id} ts=${ts}`)
         await this.web.chat.delete({ channel: channel_id, ts })
     }
 

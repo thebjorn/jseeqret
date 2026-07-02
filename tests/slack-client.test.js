@@ -148,24 +148,64 @@ describe('upload_blob', () => {
         expect(upload.mock.calls[0][0].title).toBe('')
     })
 
-    it('falls back to the timestamp field when no share ts exists', async () => {
+    // Regression (real-Slack onboarding failure): uploadV2 shares the
+    // file into the channel ASYNCHRONOUSLY, so the immediate response
+    // carries an empty `shares`. The old fallback used file.timestamp --
+    // a creation time, not a message ts -- which anchored the recipient
+    // mention outside the file's thread; the poller never matched any
+    // envelope sent over real Slack.
+    it('polls files.info until the share message ts appears', async () => {
+        let info_calls = 0
         const c = client_with_web({
             files: {
                 uploadV2: async () => ({
-                    file: { id: 'F2', timestamp: 1700000000 },
+                    file: { id: 'F2', timestamp: 1700000000, shares: {} },
                 }),
+                info: async () => {
+                    info_calls += 1
+                    return {
+                        file: {
+                            id: 'F2',
+                            timestamp: 1700000000,
+                            shares: info_calls >= 3
+                                ? { private: { C1: [{ ts: '1700000001.000100' }] } }
+                                : {},
+                        },
+                    }
+                },
             },
         })
+        c.share_poll_delay_ms = 1
         const out = await c.upload_blob({
             channel_id: 'C1',
             filename: 'f.bin',
             content_bytes: Buffer.from('x'),
         })
-        expect(out).toEqual({
-            file_id: 'F2',
-            channel_id: 'C1',
-            ts: '1700000000',
+        expect(out.ts).toBe('1700000001.000100')
+        expect(info_calls).toBe(3)
+    })
+
+    it('returns null ts (never file.timestamp) when the share never appears', async () => {
+        const c = client_with_web({
+            files: {
+                uploadV2: async () => ({
+                    file: { id: 'F2', timestamp: 1700000000 },
+                }),
+                info: async () => ({
+                    file: { id: 'F2', timestamp: 1700000000, shares: {} },
+                }),
+            },
         })
+        c.share_poll_attempts = 3
+        c.share_poll_delay_ms = 1
+        const out = await c.upload_blob({
+            channel_id: 'C1',
+            filename: 'f.bin',
+            content_bytes: Buffer.from('x'),
+        })
+        // send_blob fails closed on a null ts; a creation-time ts here
+        // would silently detach the mention from the file's thread.
+        expect(out.ts).toBeNull()
     })
 
     it('throws when no file info is returned', async () => {

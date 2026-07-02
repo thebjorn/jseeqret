@@ -21,6 +21,7 @@
 import { randomUUID } from 'crypto'
 import { pad_to_bucket, unpad_from_bucket } from './padding.js'
 import { wrap_envelope, parse_envelope } from '../serializers/envelope.js'
+import { trace } from '../trace.js'
 
 /**
  * @param {object} opts
@@ -135,8 +136,11 @@ export async function* poll_envelopes({
         try {
             env = parse_envelope(text)
         } catch {
+            trace(`poll_envelopes: frame ${frame.file_ts} is not an envelope, skipped`)
             continue
         }
+        trace(`poll_envelopes: frame ${frame.file_ts} kind=${env.kind}`
+            + ` from=${frame.sender_user_id}`)
 
         yield {
             kind: env.kind,
@@ -183,6 +187,8 @@ export async function* poll_inbox({
     })
 
     const self_mention = `<@${self_user_id}>`
+    trace(`poll_inbox: ${messages.length} messages in ${channel_id}`
+        + ` since ${oldest_ts}, matching ${self_mention}`)
 
     for (const msg of messages) {
         // We only care about file-share parents.
@@ -194,7 +200,10 @@ export async function* poll_inbox({
         // ignore (concern #2's opaque naming rule is one-way, but in
         // practice we still want to skip unrelated files).
         const blob_file = files.find(f => (f.name || '').startsWith('jsenc-'))
-        if (!blob_file) continue
+        if (!blob_file) {
+            trace(`poll_inbox: msg ${msg.ts} has files but no jsenc-*, skipped`)
+            continue
+        }
 
         // Resolve the mention + download the bytes. A single unreadable or
         // malformed blob must NOT abort the whole poll (it would strand
@@ -210,13 +219,20 @@ export async function* poll_inbox({
             const mention = thread.find(
                 m => m.ts !== msg.ts && (m.text || '').trim() === self_mention
             )
-            if (!mention) continue
+            if (!mention) {
+                trace(`poll_inbox: ${blob_file.name} at ${msg.ts}:`
+                    + ` ${thread.length - 1} replies, none mention me, skipped`)
+                continue
+            }
             mention_ts = mention.ts
 
             const info = await client.file_info(blob_file.id)
             const raw = await client.download_file(info.url_private)
             ciphertext = unpad_from_bucket(raw)
-        } catch {
+            trace(`poll_inbox: matched ${blob_file.name} at ${msg.ts}`
+                + ` from ${msg.user} (${ciphertext.length}b)`)
+        } catch (e) {
+            trace(`poll_inbox: msg ${msg.ts} skipped on error: ${e.message}`)
             continue
         }
 

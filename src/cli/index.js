@@ -7,6 +7,13 @@
 import { createRequire } from 'module'
 import { Command, Option } from 'commander'
 import { set_log_level } from '../core/logger.js'
+import { set_trace_sink } from '../core/trace.js'
+
+// JSEEQRET_TRACE=1 streams core Slack tracing to stderr (the GUI
+// writes the same trace to its log file).
+if (process.env.JSEEQRET_TRACE && process.env.JSEEQRET_TRACE !== '0') {
+    set_trace_sink((...parts) => console.error('[trace]', ...parts))
+}
 
 const require = createRequire(import.meta.url)
 const { version: pkg_version } = require('../../package.json')

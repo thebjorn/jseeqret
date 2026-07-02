@@ -4,7 +4,8 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import pkg from 'electron-updater'
 const { autoUpdater } = pkg
 import { register_ipc_handlers, ensure_active_vault_migrated } from './ipc-handlers.js'
-import { init_logger, log_info, log_error } from './logger.js'
+import { init_logger, log_info, log_error, log_trace } from './logger.js'
+import { set_trace_sink } from '../core/trace.js'
 
 function createWindow() {
     const mainWindow = new BrowserWindow({
@@ -104,6 +105,12 @@ if (!got_instance_lock) {
         // (IPC failures, onboarding events, crashes) must land on disk.
         init_logger(join(app.getPath('userData'), 'logs'))
         log_info(`jseeqret ${app.getVersion()} starting`)
+        // Core Slack tracing -> log file (no console echo). High volume
+        // but rotation-capped; the whole point is that a stalled flow in
+        // the field leaves a readable trail. JSEEQRET_TRACE=0 disables.
+        if (process.env.JSEEQRET_TRACE !== '0') {
+            set_trace_sink(log_trace)
+        }
         // Monitor variant: logs the crash without suppressing Electron's
         // default fatal handling.
         process.on('uncaughtExceptionMonitor', (e) => {
