@@ -40,11 +40,20 @@ export default async function sign(configuration) {
     console.log(`Signing: ${file_path}`)
     execFileSync(SIGNTOOL, [
         'sign',
-        '/a',                                    // auto-select certificate
+        // Pin the certificate by subject + issuer. NEVER use /a
+        // (auto-select): with stray self-signed code-signing certs in
+        // the store, /a silently picked one of them instead of the EV
+        // token cert -- no PIN prompt, untrusted signature (v2.3.0).
+        '/n', 'Norsk Test as',                   // subject CN
+        '/i', 'Sectigo',                         // issuer must be Sectigo
         '/tr', 'http://timestamp.sectigo.com',   // RFC 3161 timestamp server
         '/td', 'sha256',                         // timestamp digest algorithm
         '/fd', 'sha256',                         // file digest algorithm
         '/v',                                    // verbose
         file_path,
     ], { stdio: 'inherit' })
+
+    // Fail the build unless the signature chains to a trusted root --
+    // a wrong/self-signed cert must never reach a release again.
+    execFileSync(SIGNTOOL, ['verify', '/pa', file_path], { stdio: 'inherit' })
 }
