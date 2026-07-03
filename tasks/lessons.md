@@ -1,5 +1,19 @@
 # Lessons
 
+## Tests that fall back to the default vault only pass on dev machines (2026-07)
+
+- merge.test.js round-tripped a json-crypt import; serializer-loaded
+  Secrets carry no vault_dir and resolve the DEFAULT vault
+  (env/registry//srv/.seeqret). Green locally (this machine has a
+  registry default), red on CI — and it broke all three v2.5.0
+  workflows AFTER the release was tagged, so the fix had to ship as
+  v2.5.1 (tags are never force-moved).
+- Rules: any test that constructs Secrets via a serializer must pin
+  process.env.JSEEQRET to the fixture vault; and pre-release local runs
+  don't prove CI — the tag gets cut from code CI has never seen, so
+  release-critical suites should be verified with the default vault
+  resolution stubbed out (JSEEQRET= run) before tagging.
+
 ## electron-vite: the word import + apostrophe in a comment breaks the build (2026-07)
 
 - A doc comment saying "an import's carried timestamp" made
