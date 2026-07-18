@@ -74,6 +74,62 @@ describe('CLI: env', () => {
         expect(env_file).toContain('MY_DB_HOST="localhost"')
     })
 
+    it('supports constant values', () => {
+        fs.writeFileSync(
+            path.join(work_dir, 'env.template'),
+            'NODE_ENV=production\nmyapp:dev:DB_HOST\n',
+        )
+
+        const result = run_command([
+            'env',
+        ], { vault_dir: tmp_dir, cwd: work_dir })
+
+        expect(result.exit_code).toBe(0)
+
+        const env_file = fs.readFileSync(
+            path.join(work_dir, '.env'), 'utf-8',
+        )
+        expect(env_file).toContain('NODE_ENV="production"')
+        expect(env_file).toContain('DB_HOST="localhost"')
+    })
+
+    it('treats quoted values with colons as constants', () => {
+        fs.writeFileSync(
+            path.join(work_dir, 'env.template'),
+            'BETTER_AUTH_URL="http://localhost:5176"\n' +
+            "SINGLE_QUOTED='https://example.com:8080/path'\n" +
+            'MY_DB_HOST=myapp:dev:DB_HOST\n',
+        )
+
+        const result = run_command([
+            'env',
+        ], { vault_dir: tmp_dir, cwd: work_dir })
+
+        expect(result.exit_code).toBe(0)
+
+        const env_file = fs.readFileSync(
+            path.join(work_dir, '.env'), 'utf-8',
+        )
+        expect(env_file).toContain('BETTER_AUTH_URL="http://localhost:5176"')
+        expect(env_file).toContain('SINGLE_QUOTED="https://example.com:8080/path"')
+        // Unquoted rhs with colons is still rename-filter syntax
+        expect(env_file).toContain('MY_DB_HOST="localhost"')
+    })
+
+    it('rejects duplicate constant keys', () => {
+        fs.writeFileSync(
+            path.join(work_dir, 'env.template'),
+            'DB_HOST=constant\nmyapp:dev:DB_HOST\n',
+        )
+
+        const result = run_command([
+            'env',
+        ], { vault_dir: tmp_dir, cwd: work_dir })
+
+        expect(result.exit_code).not.toBe(0)
+        expect(result.stderr).toContain('Duplicate key')
+    })
+
     it('fails without env.template', () => {
         const result = run_command([
             'env',

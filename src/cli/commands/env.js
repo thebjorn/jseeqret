@@ -48,14 +48,18 @@ function check_version(requirement, current_version) {
 /**
  * Materialize an `.env` file in the current directory from an
  * `env.template` driver file. Template entries can be raw filter specs,
- * `OUTPUT_NAME=filter` renames, or `@seeqret>=X.Y` version guards that
- * abort if the installed tool is too old.
+ * `OUTPUT_NAME=filter` renames, `NAME=value` constants, or
+ * `@seeqret>=X.Y` version guards that abort if the installed tool is
+ * too old. A quoted right side is always a constant, even if it
+ * contains colons; an unquoted right side with a colon is a filter.
  *
  * @example
  * // env.template
  * // @seeqret>=1.0
  * // myapp:prod:*
  * // DB_URL=myapp:prod:DATABASE_URL
+ * // NODE_ENV=production
+ * // BETTER_AUTH_URL="http://localhost:5176"
  * jseeqret env
  */
 export const env_command = new Command('env')
@@ -95,17 +99,35 @@ export const env_command = new Command('env')
                 continue
             }
 
-            // Rename syntax: OUTPUT_NAME=FILTER
+            // Rename syntax (OUTPUT_NAME=FILTER) or constant (NAME=value)
             let output_name = null
             let filter_str = line
             const eq = line.indexOf('=')
-            if (eq !== -1 && !line.includes(':')) {
-                // Simple KEY=filter without colons is a rename
-                output_name = line.slice(0, eq).trim()
-                filter_str = line.slice(eq + 1).trim()
-            } else if (eq !== -1 && line.indexOf('=') < line.indexOf(':')) {
-                output_name = line.slice(0, eq).trim()
-                filter_str = line.slice(eq + 1).trim()
+            const colon = line.indexOf(':')
+            if (eq !== -1 && (colon === -1 || eq < colon)) {
+                const name = line.slice(0, eq).trim()
+                const rhs = line.slice(eq + 1).trim()
+                const quoted = rhs.length >= 2 &&
+                    rhs[0] === rhs[rhs.length - 1] &&
+                    (rhs[0] === '"' || rhs[0] === "'")
+                if (quoted || !rhs.includes(':')) {
+                    // Constant value, no vault lookup. A quoted value is
+                    // always a constant, even if it contains colons
+                    // (e.g. URL="http://localhost:5176"); the quotes are
+                    // stripped since the output adds its own.
+                    const value = quoted ? rhs.slice(1, -1) : rhs
+                    if (seen_keys.has(name)) {
+                        console.error(`Error: Duplicate key '${name}' in env.template`)
+                        process.exit(1)
+                    }
+                    seen_keys.add(name)
+                    env_lines.push(`${name}="${value}"`)
+                    console.log(`  ${name}`)
+                    continue
+                }
+                // Rename syntax: OUTPUT_NAME=app:env:key
+                output_name = name
+                filter_str = rhs
             }
 
             const fspec = new FilterSpec(filter_str)
