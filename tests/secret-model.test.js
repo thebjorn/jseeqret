@@ -97,4 +97,13 @@ describe('Secret model', () => {
     it('throws if neither value nor plaintext_value provided', () => {
         expect(() => new Secret({ app: 'a', env: 'e', key: 'K' })).toThrow()
     })
+
+    it('accepts empty string as plaintext_value', () => {
+        const s = new Secret({
+            app: 'a', env: 'e', key: 'EMPTY',
+            plaintext_value: '', vault_dir: tmp_dir,
+        })
+        expect(s.get_value()).toBe('')
+        expect(s.encrypted_value).not.toBe(null)
+    })
 })

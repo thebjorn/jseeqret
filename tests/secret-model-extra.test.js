@@ -20,12 +20,13 @@ afterEach(() => {
 })
 
 describe('Secret - encryption/decryption edge cases', () => {
-    it('rejects empty string plaintext_value (treated as falsy)', () => {
-        // Empty string is falsy in JS, so the constructor requires value or non-empty plaintext_value
-        expect(() => new Secret({
+    it('accepts empty string plaintext_value (only null/undefined rejected)', () => {
+        // Empty string is a valid value (e.g. NAME= lines in a .env file)
+        const s = new Secret({
             app: 'a', env: 'e', key: 'K',
             plaintext_value: '', vault_dir: tmp_dir,
-        })).toThrow('value or plaintext_value is required')
+        })
+        expect(s.get_value()).toBe('')
     })
 
     it('handles unicode values', () => {

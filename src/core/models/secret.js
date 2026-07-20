@@ -36,7 +36,9 @@ export class Secret {
         app, env, key, value = null, type = 'str',
         plaintext_value = null, vault_dir = null, updated_at = null,
     }) {
-        if (!value && !plaintext_value) {
+        // empty string is a valid value (e.g. NAME= lines in a .env
+        // file), only null/undefined means "not provided".
+        if (value == null && plaintext_value == null) {
             throw new Error('value or plaintext_value is required')
         }
 
