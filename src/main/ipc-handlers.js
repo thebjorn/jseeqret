@@ -25,7 +25,7 @@ import {
 } from '../core/vault-registry.js'
 import { run_migrations, upgrade_db } from '../core/migrations.js'
 import {
-    plan_secret_merge, apply_secret_merge, secret_id,
+    plan_secret_merge, apply_secret_merge, describe_conflicts,
 } from '../core/merge.js'
 import { harden_vault_windows } from '../core/fileutils.js'
 import { SlackClient } from '../core/slack/client.js'
@@ -41,6 +41,7 @@ import {
     bind_slack_handle, compute_fingerprint, require_verified_binding,
 } from '../core/slack/identity.js'
 import { send_blob } from '../core/slack/transport.js'
+import { receive_secrets } from '../core/slack/receive.js'
 import { transport_selftest } from '../core/slack/selftest.js'
 import {
     onboard_invite, onboard_poll, onboard_approve, onboard_introduce,
@@ -412,6 +413,28 @@ export function register_ipc_handlers() {
         return { results }
     })
 
+    // GUI counterpart to `jseeqret receive --via slack`. Two-phase like
+    // secrets:import: a conflicted blob is reported back unimported (its
+    // Slack thread stays put); the renderer collects per-secret choices
+    // and calls again with `resolutions`.
+    handle('secrets:receive-slack', async (_event, opts = {}) => {
+        const { storage, snap, client } = await slack_ctx()
+        const vault_dir = get_active_vault_dir()
+        const receiver_private_key = decode_key(load_private_key_str(vault_dir))
+
+        const r = await receive_secrets(storage, client, {
+            channel_id: snap.channel_id,
+            self_user_id: snap.user_id,
+            oldest_ts: snap.last_seen_ts || '0',
+            receiver_private_key,
+            resolutions: opts.resolutions || null,
+        })
+        log_info(`secrets:receive-slack imported ${r.imported} secret(s)`
+            + (r.needs_resolution
+                ? ` (${r.conflicts.length} conflict(s) pending)` : ''))
+        return r
+    })
+
     // Two-phase import: the first call classifies the payload against
     // the vault and, when values diverge, returns the conflicts WITHOUT
     // writing anything. The renderer collects per-secret choices and
@@ -448,16 +471,7 @@ export function register_ipc_handlers() {
                 needs_resolution: true,
                 additions: plan.additions.length,
                 identical: plan.identical.length,
-                conflicts: plan.conflicts.map(c => ({
-                    app: c.incoming.app,
-                    env: c.incoming.env,
-                    key: c.incoming.key,
-                    id: secret_id(c.incoming),
-                    local_value: String(c.local.get_value()),
-                    incoming_value: String(c.incoming.get_value()),
-                    local_updated_at: c.local.updated_at ?? null,
-                    incoming_updated_at: c.incoming.updated_at ?? null,
-                })),
+                conflicts: describe_conflicts(plan.conflicts),
             }
         }
 

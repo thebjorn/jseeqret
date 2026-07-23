@@ -1,121 +1,59 @@
 /**
  * `jseeqret receive --via slack [--watch] [--interval <s>]`
  *
- * Polls the configured exchange channel, decrypts any blobs that mention
- * our Slack user_id in a thread reply, imports the secrets, then deletes
- * the Slack thread to honor forward secrecy (concerns #6 and #8).
+ * Polls the configured exchange channel, decrypts any secret blobs that
+ * mention our Slack user_id in a thread reply, imports the secrets, then
+ * deletes the Slack thread to honor forward secrecy (concerns #6 and #8).
  *
- * Fail-closed rules:
+ * All transport/merge logic lives in src/core/slack/receive.js (shared
+ * with the GUI Import page). This file is argument parsing and console
+ * reporting only.
+ *
+ * Fail-closed rules (enforced in core):
  *  - On any API or decryption failure we DO NOT advance last_seen_ts
  *    and exit non-zero. The next run picks up from the same position.
  *  - A blob whose sender cannot be matched to a locally-linked user is
  *    treated as a failure (no silent skip) so a targeted attack from
  *    the channel is noisy rather than silent.
+ *  - A blob that conflicts with local values imports nothing until a
+ *    --strategy is given; its thread stays on Slack.
  */
 
 import { Command } from 'commander'
 
 import { SqliteStorage } from '../../core/sqlite-storage.js'
-import { get_serializer } from '../../core/serializers/index.js'
 import { load_private_key_str } from '../../core/crypto/utils.js'
 import { decode_key } from '../../core/crypto/nacl.js'
 import { get_seeqret_dir } from '../../core/vault.js'
 import { require_vault } from '../utils.js'
 
 import { SlackClient } from '../../core/slack/client.js'
-import { poll_inbox, delete_thread } from '../../core/slack/transport.js'
-import {
-    SLACK_KEYS,
-    slack_config_get,
-    slack_config_set,
-    slack_config_snapshot,
-} from '../../core/slack/config.js'
-import { find_user_by_slack_handle } from '../../core/slack/identity.js'
-import {
-    plan_secret_merge, apply_secret_merge, secret_id, MERGE_STRATEGIES,
-} from '../../core/merge.js'
+import { receive_secrets } from '../../core/slack/receive.js'
+import { slack_config_snapshot } from '../../core/slack/config.js'
+import { MERGE_STRATEGIES } from '../../core/merge.js'
 
 async function _run_once(storage, snap, strategy = null) {
     const client = new SlackClient(snap.user_token)
     const vault_dir = get_seeqret_dir()
     const receiver_private_key = decode_key(load_private_key_str(vault_dir))
-    const SerializerClass = get_serializer('json-crypt')
 
-    const oldest_ts = snap.last_seen_ts || '0'
-    let imported = 0
-    let highest_ts = oldest_ts
-
-    for await (const msg of poll_inbox({
-        client,
+    const r = await receive_secrets(storage, client, {
         channel_id: snap.channel_id,
         self_user_id: snap.user_id,
-        oldest_ts,
-    })) {
-        // Resolve the sender: Slack user_id -> their username (via the
-        // users.info API) -> local user record via slack_handle. This
-        // extra step is what binds the ciphertext authentication (which
-        // only proves "someone who holds sender.private_key wrote this")
-        // to a Slack-visible identity.
-        let slack_user
-        try {
-            const r = await client.web.users.info({ user: msg.sender_user_id })
-            slack_user = r.user
-        } catch (e) {
-            throw new Error(
-                `failed to resolve sender ${msg.sender_user_id}: ${e.message}`
-            )
-        }
+        oldest_ts: snap.last_seen_ts || '0',
+        receiver_private_key,
+        strategy,
+    })
 
-        const sender = await find_user_by_slack_handle(storage, slack_user.name)
-        if (!sender) {
-            throw new Error(
-                `inbound blob from unknown Slack handle '@${slack_user.name}'`
-                + ` (user_id ${msg.sender_user_id}). Run:`
-                + ` jseeqret slack link <local_user> --handle ${slack_user.name}`
-            )
-        }
-
-        // Decrypt with json-crypt serializer.
-        const serializer = new SerializerClass({
-            sender,
-            receiver_private_key,
-        })
-        const text = msg.ciphertext.toString('utf-8')
-        const secrets = serializer.load(text)
-
-        // A blob whose secrets diverge from local values is a conflict:
-        // without an explicit --strategy the whole blob fails closed --
-        // nothing imported, thread NOT deleted, cursor NOT advanced --
-        // so the next run (with a strategy) sees it again.
-        const plan = await plan_secret_merge(storage, secrets)
-        if (plan.conflicts.length > 0 && !strategy) {
-            const ids = plan.conflicts.map(c => secret_id(c.incoming))
-            throw new Error(
-                `blob from ${sender.username} conflicts with local values`
-                + ` (${ids.join(', ')}). Re-run with`
-                + ' --strategy mine|theirs|newer.'
-            )
-        }
-        const r = await apply_secret_merge(storage, plan, { strategy })
-        imported += r.added + r.updated
-
-        // Delete the thread. If this fails we fall through and re-raise
-        // so last_seen_ts is NOT advanced.
-        await delete_thread({
-            client,
-            channel_id: snap.channel_id,
-            file_id: msg.file_id,
-            reply_ts: msg.reply_ts,
-        })
-
-        if (msg.file_ts > highest_ts) highest_ts = msg.file_ts
+    if (r.needs_resolution) {
+        const ids = r.conflicts.map(c => c.id)
+        throw new Error(
+            `blob from ${r.conflict_sender} conflicts with local values`
+            + ` (${ids.join(', ')}). Re-run with`
+            + ' --strategy mine|theirs|newer.'
+        )
     }
-
-    if (highest_ts !== oldest_ts) {
-        await slack_config_set(storage, SLACK_KEYS.last_seen_ts, highest_ts)
-    }
-
-    return imported
+    return r.imported
 }
 
 /**

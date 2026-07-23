@@ -141,7 +141,7 @@ export async function* poll_envelopes({
             env = parse_envelope(text)
         } catch {
             trace(`poll_envelopes: frame ${frame.file_ts} is not an envelope, skipped`)
-            _mark_stale(stats, frame.file_ts, stale_after_seconds)
+            mark_stale(stats, frame.file_ts, stale_after_seconds)
             continue
         }
         trace(`poll_envelopes: frame ${frame.file_ts} kind=${env.kind}`
@@ -171,7 +171,13 @@ export async function* poll_envelopes({
  */
 export const STALE_AFTER_SECONDS = 15 * 60
 
-function _mark_stale(stats, ts, stale_after_seconds) {
+/**
+ * Record a skipped message in `stats.stale_ts` if it is old enough to be
+ * permanently irrelevant to the calling poller (see STALE_AFTER_SECONDS).
+ * Exported so pollers that skip *yielded* frames (e.g. `receive` skipping
+ * onboarding envelopes) can apply the same cursor rule.
+ */
+export function mark_stale(stats, ts, stale_after_seconds = STALE_AFTER_SECONDS) {
     if (!stats) return
     if (Number(ts) > Date.now() / 1000 - stale_after_seconds) return
     if (!stats.stale_ts || Number(ts) > Number(stats.stale_ts)) {
@@ -234,7 +240,7 @@ export async function* poll_inbox({
         const blob_file = files.find(f => (f.name || '').startsWith('jsenc-'))
         if (!blob_file) {
             trace(`poll_inbox: msg ${msg.ts} has files but no jsenc-*, skipped`)
-            _mark_stale(stats, msg.ts, stale_after_seconds)
+            mark_stale(stats, msg.ts, stale_after_seconds)
             continue
         }
 
@@ -255,7 +261,7 @@ export async function* poll_inbox({
             if (!mention) {
                 trace(`poll_inbox: ${blob_file.name} at ${msg.ts}:`
                     + ` ${thread.length - 1} replies, none mention me, skipped`)
-                _mark_stale(stats, msg.ts, stale_after_seconds)
+                mark_stale(stats, msg.ts, stale_after_seconds)
                 continue
             }
             mention_ts = mention.ts

@@ -16,6 +16,7 @@ const api = {
     exportSecrets: (opts) => ipcRenderer.invoke('secrets:export', opts),
     exportSecretsSave: (opts) => ipcRenderer.invoke('secrets:export-save', opts),
     sendSecretsSlack: (opts) => ipcRenderer.invoke('secrets:send-slack', opts),
+    receiveSecretsSlack: (opts) => ipcRenderer.invoke('secrets:receive-slack', opts),
     importSecrets: (opts) => ipcRenderer.invoke('secrets:import', opts),
     getIntroduction: () => ipcRenderer.invoke('vault:introduction'),
     getSerializers: () => ipcRenderer.invoke('serializers:list'),

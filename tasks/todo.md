@@ -1,5 +1,55 @@
 # TODO
 
+## Slack receive: crash fix + GUI Import integration (2026-07-23)
+
+Bug: `jseeqret receive --via slack` crashes with "Cannot read properties
+of undefined (reading 'map')". Root cause: `receive` feeds every frame
+from `poll_inbox` to the json-crypt serializer, but the channel also
+carries typed onboarding envelopes (`invite`, `user_list`, `complete`,
+`received`, ...) addressed to the same user. Those parse as JSON but have
+no `secrets` array, so `data.secrets.map` throws (json-crypt.js:36).
+
+Feature: the GUI has no way to pull secrets sent via Slack (send exists,
+receive is CLI-only).
+
+### Plan
+
+- [x] Core: new `src/core/slack/receive.js` — `receive_secrets()` shared
+      by CLI and GUI. Uses `poll_envelopes` (not raw `poll_inbox`), only
+      consumes kind `secret`, skips onboarding kinds (marking old ones
+      stale so the cursor can pass them). Fail-closed conflict handling
+      with per-secret `resolutions` + fallback `strategy`.
+- [x] Core: export `mark_stale` from transport.js; add
+      `describe_conflicts` to merge.js (shared conflict shaping)
+- [x] CLI: `receive.js` delegates to core; same messages/exit codes
+- [x] Main: `secrets:receive-slack` IPC handler (two-phase like
+      `secrets:import`)
+- [x] Preload: `receiveSecretsSlack(opts)`
+- [x] Renderer: "Receive from Slack" card on ImportView, reusing the
+      existing conflict-resolution panel
+- [x] Tests: `tests/slack-receive.test.js` — envelope-skip regression,
+      import round-trip, conflict fail-closed + resolutions, unknown
+      sender, cursor advancement
+- [x] Verify: full `pnpm test`, CLI smoke, `pnpm build`
+
+### Review
+
+- Semantics changes vs the old CLI receive: a conflicted blob no longer
+  aborts the whole poll before earlier clean blobs are imported (frames
+  walk oldest-first; clean blobs import, the walk parks on the first
+  unresolvable conflict). Onboarding envelopes are skipped by KIND
+  before sender resolution, so an unlinked TL no longer errors either.
+- GUI two-phase conflicts mirror `secrets:import`: the same panel is
+  reused; `conflict_source` routes Apply back to slack vs paste/file.
+- Cursor rule: advance past fully handled (imported + deleted) frames
+  and 15-min-stale skipped ones (`mark_stale`), never past a pending
+  conflict — frames are scanned oldest-first so `stale_ts` cannot leap
+  the cursor over one.
+- Verification: `pnpm test` 471 passed / 5 skipped (48 files, includes
+  7 new in tests/slack-receive.test.js); `receive --help` loads;
+  `pnpm build` clean (one pre-existing unused-CSS warning in
+  ExportView).
+
 ## Fix: first-run wizard unmounts after vault creation (2026-07-02)
 
 Root cause of the sandbox onboarding failure: `App.svelte` shows

@@ -16,11 +16,19 @@
     let raw_content = $derived(input_mode === 'paste' ? paste_content : file_content)
     let has_content = $derived(raw_content.trim().length > 0)
 
+    // Slack receive: pull secret blobs addressed to me from the exchange
+    // channel. Best-effort gating: without a ready Slack session the
+    // button stays disabled with a pointer to the Onboarding page.
+    let slack_ready = $state(false)
+    let receiving = $state(false)
+
     // Conflicts: secrets that already exist locally with a DIFFERENT
-    // value. The first import call writes nothing and returns them; the
-    // human picks a winner per secret, then we re-submit with the
-    // resolutions. Timestamps are advisory (they pick the defaults).
+    // value. The first import/receive call writes nothing and returns
+    // them; the human picks a winner per secret, then we re-submit with
+    // the resolutions (routed back to whichever source produced them --
+    // see conflict_source). Timestamps are advisory (defaults only).
     let conflicts = $state([])
+    let conflict_source = $state('content')   // 'content' | 'slack'
     let show_values = $state(false)
 
     function fmt_ts(ts) {
@@ -53,6 +61,15 @@
             users = await window.api.getUsers()
         } catch (e) {
             error = e.message
+        }
+    }
+
+    async function check_slack_status() {
+        try {
+            const status = await window.api.slackStatus()
+            slack_ready = !!status?.ready
+        } catch {
+            slack_ready = false
         }
     }
 
@@ -95,6 +112,7 @@
                 resolutions,
             })
             if (result.needs_resolution) {
+                conflict_source = 'content'
                 conflicts = result.conflicts.map(c => ({
                     ...c,
                     choice: default_choice(c),
@@ -119,23 +137,62 @@
         }
     }
 
+    async function handle_receive(resolutions = null) {
+        receiving = true
+        error = null
+        success = null
+
+        try {
+            const r = await window.api.receiveSecretsSlack({ resolutions })
+            if (r.needs_resolution) {
+                conflict_source = 'slack'
+                conflicts = r.conflicts.map(c => ({
+                    ...c,
+                    choice: default_choice(c),
+                }))
+                error = (r.imported > 0
+                        ? `Imported ${r.imported} secret(s), but ` : '')
+                    + `${conflicts.length} secret(s) from`
+                    + ` ${r.conflict_sender} already exist with a different`
+                    + ' value — choose which to keep below. They stay on'
+                    + ' Slack until resolved.'
+                return
+            }
+            conflicts = []
+            success = r.imported > 0
+                ? `Imported ${r.imported} secret(s) from Slack`
+                    + ` (${r.added} added, ${r.updated} updated,`
+                    + ` ${r.kept} kept local, ${r.skipped} identical)`
+                : 'No new secrets waiting on Slack.'
+        } catch (e) {
+            error = e.message
+        } finally {
+            receiving = false
+        }
+    }
+
     function apply_resolutions() {
         const resolutions = {}
         for (const c of conflicts) {
             resolutions[c.id] = c.choice
         }
-        handle_import(resolutions)
+        if (conflict_source === 'slack') {
+            handle_receive(resolutions)
+        } else {
+            handle_import(resolutions)
+        }
     }
 
     $effect(() => {
         load_users()
+        check_slack_status()
     })
 </script>
 
 <div class="import-view">
     <div class="page-header">
         <h1>Import Secrets</h1>
-        <p class="subtitle">Load secrets from an exported file or pasted content</p>
+        <p class="subtitle">Load secrets from Slack, an exported file, or pasted content</p>
     </div>
 
     {#if error}
@@ -213,13 +270,43 @@
             </table>
             <button
                 class="primary apply-btn"
-                disabled={importing}
+                disabled={importing || receiving}
                 onclick={apply_resolutions}
             >
-                {importing ? 'Importing...' : 'Apply resolutions & import'}
+                {importing || receiving
+                    ? 'Importing...' : 'Apply resolutions & import'}
             </button>
         </div>
     {/if}
+
+    <div class="card slack-receive">
+        <div class="slack-receive-text">
+            <h2>Receive from Slack</h2>
+            <p>
+                Pull encrypted secrets that teammates sent you over the
+                Slack exchange channel. Imported threads are deleted from
+                Slack to preserve forward secrecy.
+            </p>
+            {#if !slack_ready}
+                <span class="hint">
+                    Connect Slack (Onboarding page) to receive secrets
+                </span>
+            {/if}
+        </div>
+        <button
+            class="primary receive-btn"
+            onclick={() => handle_receive()}
+            disabled={receiving || !slack_ready}
+        >
+            {#if receiving}
+                <span class="spinner"></span>
+                Checking Slack...
+            {:else}
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                Check Slack
+            {/if}
+        </button>
+    </div>
 
     <div class="import-layout">
         <div class="form-section">
@@ -498,6 +585,39 @@
     .apply-btn {
         align-self: flex-start;
         padding: 10px 18px;
+    }
+
+    /* -- Slack receive card -- */
+
+    .slack-receive {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+    }
+
+    .slack-receive-text p {
+        font-size: 13px;
+        color: var(--text-muted);
+        line-height: 1.5;
+        max-width: 60ch;
+    }
+
+    .slack-receive-text h2 {
+        margin-bottom: 8px;
+    }
+
+    .receive-btn {
+        flex-shrink: 0;
+        padding: 10px 18px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .receive-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
     }
 
     .form-section {

@@ -89,6 +89,27 @@ export function resolve_conflict(conflict, strategy) {
 }
 
 /**
+ * Flatten plan conflicts into the renderer/CLI-facing shape used by the
+ * GUI conflict panel and error messages. Values are decrypted strings --
+ * callers decide whether to mask them.
+ *
+ * @param {Array<{incoming: object, local: object}>} conflicts
+ * @returns {Array<object>}
+ */
+export function describe_conflicts(conflicts) {
+    return conflicts.map(c => ({
+        app: c.incoming.app,
+        env: c.incoming.env,
+        key: c.incoming.key,
+        id: secret_id(c.incoming),
+        local_value: String(c.local.get_value()),
+        incoming_value: String(c.incoming.get_value()),
+        local_updated_at: c.local.updated_at ?? null,
+        incoming_updated_at: c.incoming.updated_at ?? null,
+    }))
+}
+
+/**
  * Apply a merge plan. Additions are inserted; identical secrets are
  * skipped untouched (their local timestamp is preserved); conflicts are
  * written only when resolved -- by an explicit per-secret resolution
