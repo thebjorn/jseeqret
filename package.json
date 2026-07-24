@@ -126,7 +126,8 @@
   "pnpm": {
     "overrides": {
       "form-data@<4.0.6": "^4.0.6",
-      "undici@<6.27.0": "^6.27.0"
+      "undici@<6.27.0": "^6.27.0",
+      "electron-builder-squirrel-windows": "26.15.0"
     }
   }
 }
