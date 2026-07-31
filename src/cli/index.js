@@ -44,6 +44,9 @@ import { slack_commands } from './commands/slack.js'
 import { send_command } from './commands/send.js'
 import { receive_command } from './commands/receive.js'
 import { onboard_commands } from './commands/onboard.js'
+import { remote_commands } from './commands/remote.js'
+import { push_command } from './commands/push.js'
+import { verify_command } from './commands/verify.js'
 
 const program = new Command()
 
@@ -90,5 +93,8 @@ program.addCommand(slack_commands)
 program.addCommand(send_command)
 program.addCommand(receive_command)
 program.addCommand(onboard_commands)
+program.addCommand(remote_commands)
+program.addCommand(push_command)
+program.addCommand(verify_command)
 
 program.parse()

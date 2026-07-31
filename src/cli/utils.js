@@ -6,6 +6,7 @@ import readline from 'readline'
 import Table from 'cli-table3'
 import { is_initialized, get_seeqret_dir } from '../core/vault.js'
 import { SqliteStorage } from '../core/sqlite-storage.js'
+import { FilterSpec } from '../core/filter.js'
 import { resolve_user, fetch_self } from '../core/user-resolve.js'
 
 /**
@@ -129,6 +130,44 @@ export async function validate_current_user() {
         console.error('Error: You are not a valid user of this vault.')
         process.exit(1)
     }
+}
+
+/**
+ * Fetch the secrets matching a filterspec for push/verify targets,
+ * exiting with a friendly error when nothing matches or when two
+ * matching secrets share a key (mirrors the Python tool's
+ * _fetch_filtered_secrets guards).
+ * @param {SqliteStorage} storage
+ * @param {string} filterspec - positional filter argument (may be '')
+ * @param {string} filter_ - -f/--filter option value (may be '')
+ * @returns {Promise<import('../core/models/secret.js').Secret[]>}
+ */
+export async function fetch_filtered_secrets_or_exit(
+    storage, filterspec, filter_
+) {
+    const effective_filter = filter_ || filterspec || '*'
+    const fspec = new FilterSpec(effective_filter)
+    const secrets = await storage.fetch_secrets(fspec.to_filter_dict())
+
+    if (secrets.length === 0) {
+        console.error(`Error: No secrets found for ${effective_filter}`)
+        process.exit(1)
+    }
+
+    const keys = {}
+    for (const secret of secrets) {
+        if (secret.key in keys) {
+            console.error(
+                `Error: Duplicate key: ${secret.key}`
+                + ` (found in ${keys[secret.key]}`
+                + ` and ${secret.app}:${secret.env})`
+            )
+            process.exit(1)
+        }
+        keys[secret.key] = `${secret.app}:${secret.env}`
+    }
+
+    return secrets
 }
 
 /**

@@ -12,6 +12,7 @@ import path from 'path'
 import { get_seeqret_dir } from './vault.js'
 import { Secret } from './models/secret.js'
 import { User } from './models/user.js'
+import { Remote } from './models/remote.js'
 import { glob_to_sql, has_glob_chars } from './filter.js'
 
 let SQL = null
@@ -401,6 +402,112 @@ export class SqliteStorage {
                 [prefix + '%']
             )
         })
+    }
+
+    // ---- SSH remote targets (migration v007) ----
+
+    /**
+     * Does this vault have the v007 `remotes` table? Feature-detected
+     * per operation (mirrors `_secrets_have_updated_at`) so the tool
+     * keeps working against a vault that has not run `upgrade` yet.
+     */
+    _has_remotes_table(db) {
+        const rows = this._query_rows(
+            db,
+            "SELECT name FROM sqlite_master"
+            + " WHERE type='table' AND name='remotes'"
+        )
+        return rows.length > 0
+    }
+
+    _remote_from_row(r) {
+        return new Remote({
+            alias: r.alias,
+            username: r.username,
+            hostname: r.hostname,
+            set_cmd: r.set_cmd,
+            get_cmd: r.get_cmd ?? null,
+        })
+    }
+
+    /**
+     * Insert an ssh remote, or overwrite an existing alias.
+     * @param {Remote} remote
+     */
+    async upsert_remote(remote) {
+        const now = Math.floor(Date.now() / 1000)
+        return this._with_db((db) => {
+            if (!this._has_remotes_table(db)) {
+                throw new Error(
+                    'The remotes table is missing --'
+                    + ' run `jseeqret upgrade` first.'
+                )
+            }
+            db.run(
+                `INSERT INTO remotes (alias, username, hostname,
+                                      set_cmd, get_cmd,
+                                      created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)
+                 ON CONFLICT(alias) DO UPDATE SET
+                     username = excluded.username,
+                     hostname = excluded.hostname,
+                     set_cmd = excluded.set_cmd,
+                     get_cmd = excluded.get_cmd,
+                     updated_at = excluded.updated_at`,
+                [
+                    remote.alias, remote.username, remote.hostname,
+                    remote.set_cmd, remote.get_cmd ?? null,
+                    now, now,
+                ]
+            )
+        }, true)
+    }
+
+    /**
+     * Fetch a single ssh remote by alias (null if not found).
+     * @param {string} alias
+     * @returns {Promise<Remote|null>}
+     */
+    async fetch_remote(alias) {
+        return this._with_db((db) => {
+            if (!this._has_remotes_table(db)) return null
+            const rows = this._query_rows(
+                db,
+                `SELECT alias, username, hostname, set_cmd, get_cmd
+                 FROM remotes WHERE alias = ?`,
+                [alias]
+            )
+            return rows.length > 0 ? this._remote_from_row(rows[0]) : null
+        })
+    }
+
+    /**
+     * Fetch all ssh remotes, ordered by alias.
+     * @returns {Promise<Remote[]>}
+     */
+    async fetch_remotes() {
+        return this._with_db((db) => {
+            if (!this._has_remotes_table(db)) return []
+            const rows = this._query_rows(
+                db,
+                `SELECT alias, username, hostname, set_cmd, get_cmd
+                 FROM remotes ORDER BY alias`
+            )
+            return rows.map(r => this._remote_from_row(r))
+        })
+    }
+
+    /**
+     * Delete an ssh remote by alias; returns rows deleted.
+     * @param {string} alias
+     * @returns {Promise<number>}
+     */
+    async remove_remote(alias) {
+        return this._with_db((db) => {
+            if (!this._has_remotes_table(db)) return 0
+            db.run('DELETE FROM remotes WHERE alias = ?', [alias])
+            return db.getRowsModified()
+        }, true)
     }
 
     // ---- Secret operations ----

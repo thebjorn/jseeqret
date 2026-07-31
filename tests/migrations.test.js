@@ -38,6 +38,21 @@ describe('migrations', () => {
         expect(table_names).toContain('migrations')
         expect(table_names).toContain('users')
         expect(table_names).toContain('secrets')
+        expect(table_names).toContain('remotes')
+        db.close()
+    })
+
+    it('migration v7 creates the remotes table', async () => {
+        const kp = generate_and_save_key_pair(tmp_dir)
+        await run_migrations(tmp_dir, 'admin', 'a@b.com', encode_key(kp.publicKey))
+
+        const db = await open_test_db()
+        const info = db.exec('PRAGMA table_info(remotes)')
+        const col_names = info[0].values.map(r => r[1])
+        expect(col_names).toEqual([
+            'alias', 'username', 'hostname', 'set_cmd', 'get_cmd',
+            'created_at', 'updated_at',
+        ])
         db.close()
     })
 

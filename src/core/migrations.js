@@ -209,6 +209,32 @@ function init_db_v006(db) {
 }
 
 /**
+ * Migration 007: SSH remote targets.
+ *
+ * `remotes` maps a short alias to an ssh identity (`username@hostname`)
+ * plus the command templates used to push and verify secrets on that
+ * host. The templates live in the vault -- not in the code -- so the
+ * tools need no built-in knowledge of private server-side commands:
+ * `{key}`/`{value}` placeholders are substituted (shell-quoted) at run
+ * time. Mirrors Python seeqret's migration 007.
+ */
+function init_db_v007(db) {
+    db.run(`
+        CREATE TABLE IF NOT EXISTS remotes (
+            alias      TEXT PRIMARY KEY,
+            username   TEXT NOT NULL,
+            hostname   TEXT NOT NULL,
+            set_cmd    TEXT NOT NULL,
+            get_cmd    TEXT,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        );
+    `)
+
+    db.run('INSERT OR IGNORE INTO migrations (version) VALUES (7)')
+}
+
+/**
  * Run all pending migrations.
  * @param {string} vault_dir
  * @param {string} username
@@ -244,6 +270,10 @@ export async function run_migrations(vault_dir, username, email, pubkey) {
 
         if (version < 6) {
             init_db_v006(db)
+        }
+
+        if (version < 7) {
+            init_db_v007(db)
         }
 
         save_db(db, db_path)
@@ -293,6 +323,12 @@ export async function upgrade_db(vault_dir) {
         if (version < 6) {
             init_db_v006(db)
             console.log('Upgraded to version 6.')
+            upgraded = true
+        }
+
+        if (version < 7) {
+            init_db_v007(db)
+            console.log('Upgraded to version 7.')
             upgraded = true
         }
 

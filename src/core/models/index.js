@@ -7,3 +7,4 @@
 
 export { Secret } from './secret.js'
 export { User } from './user.js'
+export { Remote } from './remote.js'
