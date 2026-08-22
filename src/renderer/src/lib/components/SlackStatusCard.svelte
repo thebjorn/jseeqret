@@ -18,6 +18,9 @@
     const other_problems = $derived(
         (status?.problems || []).filter(p => !p.startsWith('MFA'))
     )
+    const needs_reauth = $derived(
+        status?.logged_in && status?.token_age_days > 90
+    )
 
     async function load_status() {
         try {
@@ -133,6 +136,12 @@
                 <div class="row"><span>Token age</span><span>{status.token_age_days} days</span></div>
             {/if}
         </div>
+        {#if needs_reauth}
+            <p class="muted">Your Slack sign-in is more than 90 days old.</p>
+            <button class="primary" disabled={busy} onclick={login}>
+                {busy ? 'Opening browser...' : 'Sign in to Slack again'}
+            </button>
+        {/if}
         {#if status.ready}
             <div class="selftest">
                 <button class="test-btn" disabled={testing} onclick={run_selftest}>

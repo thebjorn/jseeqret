@@ -276,12 +276,29 @@ const slack_doctor = new Command('doctor')
         const drifted = linked.filter(
             u => compute_fingerprint(u) !== u.slack_key_fingerprint
         )
+        const drift_detail = drifted.length === 0
+            ? 'ok'
+            : drifted.map(u => {
+                const current = compute_fingerprint(u)
+                const username = JSON.stringify(u.username)
+                const reason = u.slack_key_fingerprint
+                    ? 'public key changed after Slack verification'
+                    : 'no verified fingerprint is stored'
+                return [
+                    `${u.username}: ${reason}`,
+                    `  stored fingerprint: ${u.slack_key_fingerprint || '(none)'}`,
+                    `  current fingerprint: ${current}`,
+                    '  If expected, verify the current fingerprint with the user',
+                    '  by voice or in person, then refresh the binding:',
+                    `    jseeqret slack link ${username} --handle ${u.slack_handle}`,
+                    '  If this identity is obsolete, remove it:',
+                    `    jseeqret rm user ${username}`,
+                ].join('\n       ')
+            }).join('\n       ')
         check(
             'stored fingerprints match current pubkeys',
             drifted.length === 0,
-            drifted.length === 0
-                ? 'ok'
-                : `drift: ${drifted.map(u => u.username).join(', ')}`
+            drift_detail
         )
 
         // MFA attestation -- operator promise, re-prompted every 90 days.

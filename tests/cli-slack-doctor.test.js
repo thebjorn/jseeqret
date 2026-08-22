@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { create_test_vault, cleanup_vault, run_command } from './cli-helpers.js'
+import { SqliteStorage } from '../src/core/sqlite-storage.js'
+import { User } from '../src/core/models/user.js'
+import { generate_key_pair, encode_key } from '../src/core/crypto/nacl.js'
+import { bind_slack_handle } from '../src/core/slack/identity.js'
 
 // Regression coverage for `slack doctor --accept`. The action used to read
 // a single config snapshot up front, evaluate every check against it, and
@@ -60,5 +64,43 @@ describe('CLI: slack doctor --accept', () => {
         expect(r.stdout).toMatch(
             new RegExp(`\\[FAIL\\][^\\n]*${MFA_LABEL.source}`)
         )
+    })
+})
+
+describe('CLI: slack doctor fingerprint repair guidance', () => {
+    it('prints exact actions for a changed public key', async () => {
+        const storage = new SqliteStorage('seeqrets.db', tmp_dir)
+        const username =
+            'WDAGUtilityAccount@fa4e5104-8c0f-43f8-9d3c-dcc63b1c1eba'
+        const original_key = generate_key_pair()
+        await storage.add_user(new User(
+            username,
+            'sandbox@test.com',
+            encode_key(original_key.publicKey),
+        ))
+        await bind_slack_handle(storage, username, 'sandbox-user')
+
+        // Simulate an unverified key rotation. update_user() deliberately
+        // clears the old binding, so write directly to cover malicious or
+        // legacy database drift detected by doctor.
+        const replacement_key = generate_key_pair()
+        await storage._with_db((db) => {
+            db.run('UPDATE users SET pubkey = ? WHERE username = ?', [
+                encode_key(replacement_key.publicKey), username,
+            ])
+        }, true)
+
+        const r = run_command(['slack', 'doctor'], { vault_dir: tmp_dir })
+
+        expect(r.exit_code).toBe(1)
+        expect(r.stdout).toContain(
+            `${username}: public key changed after Slack verification`
+        )
+        expect(r.stdout).toMatch(/stored fingerprint: [0-9a-f]{5}/)
+        expect(r.stdout).toMatch(/current fingerprint: [0-9a-f]{5}/)
+        expect(r.stdout).toContain(
+            `jseeqret slack link "${username}" --handle sandbox-user`
+        )
+        expect(r.stdout).toContain(`jseeqret rm user "${username}"`)
     })
 })
