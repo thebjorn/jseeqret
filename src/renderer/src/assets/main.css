@@ -85,6 +85,16 @@ button.ghost:hover {
     background: var(--bg-input);
 }
 
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+button.primary:disabled:hover {
+    background: var(--accent);
+}
+
 input, select, textarea {
     background: var(--bg-input);
     color: var(--text);

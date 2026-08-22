@@ -34,6 +34,7 @@
     let link_target = $state(null)
     let link_checked = $state(false)
     let link_typed = $state('')
+    let link_error = $state(null)
 
     // Add / edit dialogs
     let show_add = $state(false)
@@ -125,29 +126,34 @@
         link_target = user
         link_checked = false
         link_typed = ''
+        link_error = null
     }
 
+    const link_fingerprint = $derived(link_typed.trim().toLowerCase())
+    const link_fingerprint_matches = $derived(
+        !!link_target && link_fingerprint === link_target.fingerprint
+    )
     const can_link = $derived(
         link_target && link_checked
-        && link_typed.trim() === link_target.fingerprint && !busy
+        && link_fingerprint_matches && !busy
     )
 
     async function submit_link() {
         if (!can_link) return
         busy = true
-        error = null
+        link_error = null
         notice = null
         try {
             await window.api.slackLink({
                 username: link_target.username,
                 handle: (link_target.name || link_target.username).split('@')[0],
-                fingerprint: link_typed.trim(),
+                fingerprint: link_fingerprint,
             })
             notice = `Linked ${link_target.username} for Slack sending.`
             link_target = null
             await load_users()
         } catch (e) {
-            error = e.message
+            link_error = e.message
         } finally {
             busy = false
         }
@@ -567,6 +573,9 @@
                 fingerprint that came over Slack.
             </p>
             <div class="big-fp linkfp">{link_target.fingerprint}</div>
+            {#if link_error}
+                <div class="alert error" role="alert">{link_error}</div>
+            {/if}
             <label class="check">
                 <input type="checkbox" bind:checked={link_checked}>
                 I verified this fingerprint on a voice call
@@ -575,7 +584,19 @@
                 <span>Type the fingerprint back to confirm</span>
                 <input type="text" bind:value={link_typed} class="mono"
                     placeholder={link_target.fingerprint}
+                    aria-invalid={link_typed.trim() !== '' && !link_fingerprint_matches}
                     autocomplete="off" spellcheck="false">
+                {#if link_typed.trim() !== '' && !link_fingerprint_matches}
+                    <span class="validation-error" role="alert">
+                        Fingerprint does not match. Check all five characters
+                        and try again.
+                    </span>
+                {:else if link_fingerprint_matches && !link_checked}
+                    <span class="validation-ok" role="status">
+                        Fingerprint matches. Confirm the voice-call verification
+                        above to continue.
+                    </span>
+                {/if}
             </label>
             <div class="dialog-actions">
                 <button class="ghost" onclick={() => link_target = null}>
@@ -872,6 +893,16 @@
 
     .warn-text {
         color: var(--warning);
+    }
+
+    .validation-error {
+        color: var(--danger-text);
+        font-size: 12px;
+    }
+
+    .validation-ok {
+        color: var(--success);
+        font-size: 12px;
     }
 
     .check {
