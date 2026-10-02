@@ -51,6 +51,7 @@ import {
     get_wizard_state, set_wizard_state,
 } from '../core/onboarding.js'
 import { log_info, log_error, get_log_dir } from './logger.js'
+import { select_export_secrets } from './export-selection.js'
 
 /**
  * Resolve vault dir from registry default first, falling back to
@@ -267,9 +268,10 @@ export function register_ipc_handlers() {
 
     /**
      * Serialize the matching secrets for one recipient. Shared by the
-     * export / export-save / send-slack handlers.
+     * export / export-save / send-slack handlers. `keys` narrows the
+     * filter's matches to the GUI table's rows (see export-selection.js).
      */
-    async function export_for(storage, { to, filter, serializer, system }) {
+    async function export_for(storage, { to, filter, keys, serializer, system }) {
         const admin = await storage.fetch_admin()
         const vault_dir = get_active_vault_dir()
         const sender_private_key = decode_key(load_private_key_str(vault_dir))
@@ -280,8 +282,7 @@ export function register_ipc_handlers() {
             throw new Error(`User '${to}' not found in vault.`)
         }
 
-        const fspec = new FilterSpec(filter)
-        const secrets = await storage.fetch_secrets(fspec.to_filter_dict())
+        const secrets = await select_export_secrets(storage, filter, keys)
 
         if (secrets.length === 0) {
             throw new Error('No matching secrets found.')
@@ -302,14 +303,14 @@ export function register_ipc_handlers() {
 
     // `to` may be one username or a list; each recipient gets their own
     // (per-key encrypted) output.
-    handle('secrets:export', async (_event, { to, filter, serializer, system }) => {
+    handle('secrets:export', async (_event, { to, filter, keys, serializer, system }) => {
         const storage = get_storage()
         const recipients = Array.isArray(to) ? to : [to]
         const results = []
         let count = 0
         for (const username of recipients) {
             const r = await export_for(storage, {
-                to: username, filter, serializer, system,
+                to: username, filter, keys, serializer, system,
             })
             count = r.count
             results.push({
@@ -330,13 +331,13 @@ export function register_ipc_handlers() {
         return String(s).replace(/[^a-z0-9._@-]+/gi, '_')
     }
 
-    handle('secrets:export-save', async (_event, { to, filter, serializer, system }) => {
+    handle('secrets:export-save', async (_event, { to, filter, keys, serializer, system }) => {
         const storage = get_storage()
         const recipients = Array.isArray(to) ? to : [to]
         const results = []
         for (const username of recipients) {
             const r = await export_for(storage, {
-                to: username, filter, serializer, system,
+                to: username, filter, keys, serializer, system,
             })
             results.push({ username, output: r.output, count: r.count })
         }
@@ -373,7 +374,7 @@ export function register_ipc_handlers() {
         return { canceled: false, saved, count: results[0]?.count ?? 0 }
     })
 
-    handle('secrets:send-slack', async (_event, { to, filter }) => {
+    handle('secrets:send-slack', async (_event, { to, filter, keys }) => {
         const { storage, snap, client } = await slack_ctx()
         const recipients = Array.isArray(to) ? to : [to]
         const results = []
@@ -383,7 +384,8 @@ export function register_ipc_handlers() {
                 // must hold a verified slack binding.
                 await require_verified_binding(storage, username)
                 const r = await export_for(storage, {
-                    to: username, filter, serializer: 'json-crypt', system: null,
+                    to: username, filter, keys,
+                    serializer: 'json-crypt', system: null,
                 })
                 if (!r.receiver.email) {
                     throw new Error('user has no email to resolve on Slack')

@@ -1,4 +1,7 @@
 <script>
+    import MultiSelectFilter from './MultiSelectFilter.svelte'
+    import { apply_column_filters, distinct_values } from '../column-filters.js'
+
     // Export view. Recipients are selected by display NAME; a name fans
     // out to every user record (machine identity) sharing it, and each
     // record gets its own per-key encrypted output. Delivery: clipboard
@@ -15,6 +18,18 @@
     let serializer = $state('json-crypt')
     let platform = $state('auto')
     let output_mode = $state('clipboard')
+
+    // Column filters on the preview table narrow what gets exported:
+    // the export covers exactly the rows shown.
+    let column_filters = $state({ app: [], env: [], key: '' })
+
+    const app_options = $derived(
+        distinct_values(secrets, 'app', column_filters.app)
+    )
+    const env_options = $derived(
+        distinct_values(secrets, 'env', column_filters.env)
+    )
+    const shown = $derived(apply_column_filters(secrets, column_filters))
 
     let preview_result = $state('')
     let send_results = $state([])      // per-recipient slack results
@@ -55,7 +70,7 @@
     )
 
     const can_export = $derived(
-        !exporting && recipients.length > 0 && secrets.length > 0
+        !exporting && recipients.length > 0 && shown.length > 0
         && !clipboard_blocked
     )
 
@@ -97,6 +112,7 @@
         send_results = []
 
         const to = recipients.map(u => u.username)
+        const keys = shown.map(s => `${s.app}:${s.env}:${s.key}`)
         const system = !platform_relevant || platform === 'auto'
             ? null
             : platform === 'windows' ? 'win32' : 'linux'
@@ -104,7 +120,7 @@
         try {
             if (output_mode === 'clipboard') {
                 const r = await window.api.exportSecrets({
-                    to, filter, serializer: effective_serializer, system,
+                    to, filter, keys, serializer: effective_serializer, system,
                 })
                 await navigator.clipboard.writeText(r.results[0].output)
                 preview_result = r.results[0].output
@@ -112,14 +128,14 @@
                     + `${r.results[0].username} to clipboard`
             } else if (output_mode === 'file') {
                 const r = await window.api.exportSecretsSave({
-                    to, filter, serializer: effective_serializer, system,
+                    to, filter, keys, serializer: effective_serializer, system,
                 })
                 if (!r.canceled) {
                     success = `Saved ${r.saved.length} file(s): `
                         + r.saved.join(', ')
                 }
             } else {
-                const r = await window.api.sendSecretsSlack({ to, filter })
+                const r = await window.api.sendSecretsSlack({ to, filter, keys })
                 send_results = r.results
                 const ok = r.results.filter(x => x.ok).length
                 const failed = r.results.length - ok
@@ -279,10 +295,10 @@
                         <span class="spinner"></span>
                         Exporting...
                     {:else if output_mode === 'slack'}
-                        Send {secrets.length} Secret{secrets.length !== 1 ? 's' : ''}
+                        Send {shown.length} Secret{shown.length !== 1 ? 's' : ''}
                         to {recipients.length} recipient{recipients.length !== 1 ? 's' : ''}
                     {:else}
-                        Export {secrets.length} Secret{secrets.length !== 1 ? 's' : ''}
+                        Export {shown.length} Secret{shown.length !== 1 ? 's' : ''}
                         {recipients.length > 1 ? `× ${recipients.length}` : ''}
                     {/if}
                 </button>
@@ -309,7 +325,11 @@
             {/if}
 
             <div class="card">
-                <h2>Matching Secrets ({secrets.length})</h2>
+                <h2>
+                    Matching Secrets ({shown.length === secrets.length
+                        ? secrets.length
+                        : `${shown.length} of ${secrets.length}`})
+                </h2>
                 {#if secrets.length === 0}
                     <div class="empty">No secrets match the filter pattern.</div>
                 {:else}
@@ -322,9 +342,15 @@
                                     <th>Key</th>
                                     <th>Type</th>
                                 </tr>
+                                <tr class="filter-row">
+                                    <th><MultiSelectFilter options={app_options} bind:selected={column_filters.app} label="app" /></th>
+                                    <th><MultiSelectFilter options={env_options} bind:selected={column_filters.env} label="env" /></th>
+                                    <th><input type="text" bind:value={column_filters.key} placeholder="filter..." class="col-filter"></th>
+                                    <th></th>
+                                </tr>
                             </thead>
                             <tbody>
-                                {#each secrets as secret}
+                                {#each shown as secret (`${secret.app}:${secret.env}:${secret.key}`)}
                                     <tr>
                                         <td>{secret.app}</td>
                                         <td><span class="env-badge">{secret.env}</span></td>
@@ -332,6 +358,13 @@
                                         <td class="type-label">{secret.type}</td>
                                     </tr>
                                 {/each}
+                                {#if shown.length === 0}
+                                    <tr>
+                                        <td colspan="4" class="empty-filtered">
+                                            No secrets match the column filters.
+                                        </td>
+                                    </tr>
+                                {/if}
                             </tbody>
                         </table>
                     </div>
@@ -424,8 +457,7 @@
         margin-bottom: 6px;
     }
 
-    .form-group > select,
-    .form-group > input {
+    .form-group > select {
         width: 100%;
     }
 
@@ -580,6 +612,33 @@
     .preview-table-wrap {
         max-height: 400px;
         overflow-y: auto;
+    }
+
+    .filter-row th {
+        padding: 4px 6px;
+        background: var(--bg-card);
+        border-bottom: 1px solid var(--border);
+    }
+
+    .col-filter {
+        width: 100%;
+        padding: 4px 8px !important;
+        font-size: 12px !important;
+        background: var(--bg) !important;
+        border: 1px solid var(--border) !important;
+        border-radius: 4px !important;
+        color: var(--text) !important;
+    }
+
+    .col-filter::placeholder {
+        color: var(--text-muted);
+        opacity: 0.5;
+    }
+
+    .empty-filtered {
+        text-align: center;
+        color: var(--text-muted);
+        padding: 20px !important;
     }
 
     .send-results {

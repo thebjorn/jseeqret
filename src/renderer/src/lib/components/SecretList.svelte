@@ -1,4 +1,7 @@
 <script>
+  import MultiSelectFilter from './MultiSelectFilter.svelte'
+  import { apply_column_filters, distinct_values } from '../column-filters.js'
+
   let { filter = '*' } = $props()
   let secrets = $state([])
   let error = $state(null)
@@ -9,7 +12,11 @@
   let sortDirection = $state('asc')
 
   // Column filter state
-  let columnFilters = $state({ app: '', env: '', key: '', value: '', type: '' })
+  // app/env: lists of selected values (multi-select); key/type: search text
+  let columnFilters = $state({ app: [], env: [], key: '', type: '' })
+
+  let app_options = $derived(distinct_values(secrets, 'app', columnFilters.app))
+  let env_options = $derived(distinct_values(secrets, 'env', columnFilters.env))
 
   async function loadSecrets() {
     try {
@@ -115,25 +122,7 @@
   }
 
   let filteredSecrets = $derived.by(() => {
-    let result = secrets
-
-    // Apply column filters
-    if (columnFilters.app) {
-      const f = columnFilters.app.toLowerCase()
-      result = result.filter(s => s.app.toLowerCase().includes(f))
-    }
-    if (columnFilters.env) {
-      const f = columnFilters.env.toLowerCase()
-      result = result.filter(s => s.env.toLowerCase().includes(f))
-    }
-    if (columnFilters.key) {
-      const f = columnFilters.key.toLowerCase()
-      result = result.filter(s => s.key.toLowerCase().includes(f))
-    }
-    if (columnFilters.type) {
-      const f = columnFilters.type.toLowerCase()
-      result = result.filter(s => s.type.toLowerCase().includes(f))
-    }
+    let result = apply_column_filters(secrets, columnFilters)
 
     // Apply sorting (updated_at is numeric; the rest sort as text)
     if (sortColumn) {
@@ -177,8 +166,8 @@
         <th></th>
       </tr>
       <tr class="filter-row">
-        <th><input type="text" bind:value={columnFilters.app} placeholder="filter..." class="col-filter" /></th>
-        <th><input type="text" bind:value={columnFilters.env} placeholder="filter..." class="col-filter" /></th>
+        <th><MultiSelectFilter options={app_options} bind:selected={columnFilters.app} label="app" /></th>
+        <th><MultiSelectFilter options={env_options} bind:selected={columnFilters.env} label="env" /></th>
         <th><input type="text" bind:value={columnFilters.key} placeholder="filter..." class="col-filter" /></th>
         <th></th>
         <th><input type="text" bind:value={columnFilters.type} placeholder="filter..." class="col-filter" /></th>
