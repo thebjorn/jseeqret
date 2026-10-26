@@ -7,6 +7,7 @@ import {
     render_cmd,
     push_secret,
     verify_secret,
+    pull_secret,
 } from '../src/core/remote-ssh.js'
 
 const SERVER = 'deploy@server.example.com'
@@ -345,5 +346,146 @@ describe('verify_secret', () => {
         )
         expect(verify_secret(make_remote(), make_secret(), run))
             .toBe('missing')
+    })
+})
+
+const SERVER2 = 'deploy@server2.example.com'
+
+function add_second_server() {
+    return run_command(
+        ['remote', 'add', 'other', SERVER2,
+         '--set', SET_CMD_STDIN, '--get', GET_CMD],
+        { vault_dir: tmp_dir }
+    )
+}
+
+describe('multiple remotes - CLI level', () => {
+    it('push dry-run covers every listed remote', () => {
+        add_secret('FOO', 'secret123')
+        add_server({ set_cmd: SET_CMD_STDIN })
+        add_second_server()
+
+        const res = run_command(
+            ['push', 'myserver,other', 'myapp:prod:FOO', '--dry-run'],
+            { vault_dir: tmp_dir }
+        )
+        expect(res.exit_code).toBe(0)
+        expect(res.stdout).toContain('would push FOO to myserver')
+        expect(res.stdout).toContain('would push FOO to other')
+        expect(res.stdout).toContain(`ssh ${SERVER} `)
+        expect(res.stdout).toContain(`ssh ${SERVER2} `)
+        expect(res.stdout).not.toContain('secret123')
+    })
+
+    it('push fails if any listed alias is unknown', () => {
+        add_secret('FOO', 'secret123')
+        add_server()
+        const res = run_command(
+            ['push', 'myserver,nosuch', 'myapp:prod:FOO', '--dry-run'],
+            { vault_dir: tmp_dir }
+        )
+        expect(res.exit_code).not.toBe(0)
+        expect(res.stderr).toContain('No remote named nosuch')
+    })
+
+    it('verify fails if any listed remote has no get command', () => {
+        add_secret('FOO', 'secret123')
+        add_server({ get_cmd: null })
+        add_second_server()
+        const res = run_command(
+            ['verify', 'other,myserver', 'myapp:prod:FOO'],
+            { vault_dir: tmp_dir }
+        )
+        expect(res.exit_code).not.toBe(0)
+        expect(res.stderr).toContain("Remote 'myserver' has no get command")
+    })
+})
+
+describe('pull - CLI level', () => {
+    it('fails when the remote has no get command', () => {
+        add_server({ get_cmd: null })
+        const res = run_command(
+            ['pull', 'myserver', 'FOO'], { vault_dir: tmp_dir }
+        )
+        expect(res.exit_code).not.toBe(0)
+        expect(res.stderr).toContain('no get command')
+    })
+
+    it('fails on an unknown alias', () => {
+        const res = run_command(
+            ['pull', 'nosuch', 'FOO'], { vault_dir: tmp_dir }
+        )
+        expect(res.exit_code).not.toBe(0)
+        expect(res.stderr).toContain('No remote named nosuch')
+    })
+
+    it('takes a single remote', () => {
+        add_server()
+        add_second_server()
+        const res = run_command(
+            ['pull', 'myserver,other', 'FOO'], { vault_dir: tmp_dir }
+        )
+        expect(res.exit_code).not.toBe(0)
+        expect(res.stderr).toContain('single remote')
+    })
+
+    it('refuses to overwrite an existing secret without --force', () => {
+        add_server()
+        add_secret('FOO', 'old')
+        const res = run_command(
+            ['pull', 'myserver', 'FOO', '--app', 'myapp', '--env', 'prod'],
+            { vault_dir: tmp_dir }
+        )
+        expect(res.exit_code).not.toBe(0)
+        expect(res.stderr).toContain('Use --force to overwrite')
+    })
+
+    it('rejects a colon in key, app or env', () => {
+        add_server()
+        const res = run_command(
+            ['pull', 'myserver', 'A:B'], { vault_dir: tmp_dir }
+        )
+        expect(res.exit_code).not.toBe(0)
+        expect(res.stderr).toContain('Colon')
+    })
+})
+
+describe('pull_secret', () => {
+    it('returns the trimmed output of the get command', () => {
+        const { calls, run } = recording_run(
+            { returncode: 0, stdout: 'topsecret\n', stderr: '' }
+        )
+        const res = pull_secret(make_remote(), 'FOO', run)
+
+        expect(res).toEqual({ ok: true, value: 'topsecret', error: '' })
+        expect(calls[0].userhost).toBe(SERVER)
+        expect(calls[0].cmd).toBe('myvault get-secret --key FOO --stdout')
+        expect(calls[0].input).toBe(null)
+    })
+
+    it('shell-quotes the key', () => {
+        const { calls, run } = recording_run(
+            { returncode: 0, stdout: 'x', stderr: '' }
+        )
+        pull_secret(make_remote(), 'A B', run)
+        expect(calls[0].cmd).toBe("myvault get-secret --key 'A B' --stdout")
+    })
+
+    it('reports the last stderr line on failure', () => {
+        const { run } = recording_run({
+            returncode: 1, stdout: '',
+            stderr: "Traceback (most recent call last):\nKeyError: 'NOPE'\n",
+        })
+        expect(pull_secret(make_remote(), 'NOPE', run)).toEqual(
+            { ok: false, value: '', error: "KeyError: 'NOPE'" }
+        )
+    })
+
+    it('reports the exit code when there is no output', () => {
+        const { run } = recording_run(
+            { returncode: 255, stdout: '', stderr: '' }
+        )
+        expect(pull_secret(make_remote(), 'FOO', run).error)
+            .toBe('exit code 255')
     })
 })

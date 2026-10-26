@@ -171,6 +171,38 @@ export async function fetch_filtered_secrets_or_exit(
 }
 
 /**
+ * Resolve a remote alias argument to registered remotes. Several
+ * comma-separated aliases (`web1,web2`) resolve to all of them, in
+ * order and without duplicates. Prints an error and exits on an
+ * unknown alias.
+ * @param {SqliteStorage} storage
+ * @param {string} alias_arg
+ * @returns {Promise<import('../core/models/remote.js').Remote[]>}
+ */
+export async function fetch_remotes_or_exit(storage, alias_arg) {
+    const remotes = []
+    const aliases = alias_arg.split(',').map(a => a.trim()).filter(Boolean)
+    for (const alias of aliases) {
+        const remote = await storage.fetch_remote(alias)
+        if (!remote) {
+            console.error(
+                `Error: No remote named ${alias}`
+                + ' (register it with `jseeqret remote add`).'
+            )
+            process.exit(1)
+        }
+        if (!remotes.some(r => r.alias === remote.alias)) {
+            remotes.push(remote)
+        }
+    }
+    if (remotes.length === 0) {
+        console.error('Error: No remote given.')
+        process.exit(1)
+    }
+    return remotes
+}
+
+/**
  * Resolve a user-name argument (bare or `user@host`) to a vault user,
  * printing a friendly error and exiting on an unknown or ambiguous name.
  * Keeps call sites as terse as the previous `fetch_user` + null check.

@@ -1,5 +1,5 @@
 /**
- * Push/verify secrets on ssh remote targets (mirror of Python
+ * Push/verify/pull secrets on ssh remote targets (mirror of Python
  * seeqret's cli_remote_ssh module).
  *
  * The remote's command templates (`set_cmd`/`get_cmd`, stored in the
@@ -96,4 +96,26 @@ export function verify_secret(remote, secret, run = ssh_run) {
     if (res.returncode !== 0) return 'missing'
     if (res.stdout.trim() === String(secret.get_value())) return 'ok'
     return 'mismatch'
+}
+
+/**
+ * Fetch one secret's value from a remote with its get command. The
+ * output is trimmed the same way verify_secret compares it, so a
+ * pulled value verifies as ok against the remote it came from.
+ * @param {import('./models/remote.js').Remote} remote
+ * @param {string} key
+ * @param {function} [run=ssh_run] - injectable for tests
+ * @returns {{ ok: boolean, value: string, error: string }}
+ */
+export function pull_secret(remote, key, run = ssh_run) {
+    const res = run(remote, render_cmd(remote.get_cmd, key), null)
+
+    if (res.returncode !== 0) {
+        // last line only: a remote traceback ends with the useful bit
+        const lines = (res.stderr || res.stdout).trim().split(/\r?\n/)
+        const error = lines[lines.length - 1]
+            || `exit code ${res.returncode}`
+        return { ok: false, value: '', error }
+    }
+    return { ok: true, value: res.stdout.trim(), error: '' }
 }

@@ -47,6 +47,7 @@ import { onboard_commands } from './commands/onboard.js'
 import { remote_commands } from './commands/remote.js'
 import { push_command } from './commands/push.js'
 import { verify_command } from './commands/verify.js'
+import { pull_command } from './commands/pull.js'
 
 const program = new Command()
 
@@ -96,5 +97,6 @@ program.addCommand(onboard_commands)
 program.addCommand(remote_commands)
 program.addCommand(push_command)
 program.addCommand(verify_command)
+program.addCommand(pull_command)
 
 program.parse()
