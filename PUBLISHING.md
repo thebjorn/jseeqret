@@ -188,6 +188,9 @@ The `--clobber` flag replaces any file already on the release.
 
 | Workflow | Trigger | What it does |
 |---|---|---|
+| `ci.yml` | Push to master, pull requests | Tests with coverage on Ubuntu and Windows (Node 24), Codecov upload, Electron build; on master also builds the TypeDoc site and deploys it to GitHub Pages |
+| `semgrep.yml` | Pull requests, push to master, daily | Semgrep static analysis |
+| `claude.yml` | `@claude` in issue/PR comments | Claude Code assistant |
 | `build-release.yml` | Push tag `v*` | Builds Electron app, runs tests, uploads the unsigned installer as a workflow artifact (no GitHub release) |
 | `npm-publish.yml` | GitHub release created (via PAT) | Runs tests, publishes to npmjs.org via Trusted Publishing (OIDC) |
 

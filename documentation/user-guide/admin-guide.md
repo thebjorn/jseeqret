@@ -21,7 +21,7 @@ An attacker who compromises Slack (or the workspace admin account) can
 see metadata and delete messages, but cannot read any secret -- unless
 they also hold a recipient's local NaCl private key.
 
-Read [`../slack-exchange/security-concerns.md`](../completed/slack-exchange/security-concerns.md)
+Read [`../completed/slack-exchange/security-concerns.md`](../completed/slack-exchange/security-concerns.md)
 before you start. The nine concerns there drive every decision in this
 guide. You do not need to memorize them, but you should know which ones
 the `slack doctor` command enforces, because that is what your users
@@ -36,8 +36,9 @@ will run.
   **prerequisite**, not a hardening step. Without it, a phished Slack
   account can post forged ciphertext blobs at will.
 - Node.js 18 or newer on every client machine.
-- jseeqret installed on every client machine (`pnpm install -g jseeqret`
-  or via the Electron installer).
+- jseeqret installed on every client machine. The commands in this
+  guide need the CLI (`npm install -g jseeqret`); the Windows installer
+  ships only the GUI.
 
 ## 1. Provision the Slack workspace
 
@@ -53,8 +54,9 @@ will run.
 4. **Set channel message retention to 24 hours.** In a paid workspace:
    channel settings -> "Edit message retention for this channel" ->
    "Retain all messages for 24 hours, then delete". This is what
-   stops forward-secrecy decay (security concern #6). `slack doctor`
-   will fail closed if retention is longer than 24 h.
+   stops forward-secrecy decay (security concern #6). jseeqret cannot
+   read the retention setting, so `slack doctor` does not check it:
+   set it by hand and re-check it when you audit the workspace.
 5. **Audit connected apps.** Workspace -> Settings -> Manage apps.
    Any third-party app with `files:read` on this workspace is
    effectively a shadow archive of your ciphertext. Remove anything
@@ -69,12 +71,16 @@ will run.
 On your own machine:
 
 ```bash
-jseeqret init ~/.seeqrets
+jseeqret init ~ --email you@example.com
+export JSEEQRET=~/seeqret        # Windows: setx JSEEQRET "%USERPROFILE%\seeqret"
 ```
 
-This creates, inside the vault directory:
+`init` creates the vault in a `seeqret` folder inside the directory you
+give it and prints the `JSEEQRET` line to run. Keep the default username
+(`<os-user>@<host>`); `whoami` and `introduction` recognise you by it.
+The vault folder contains:
 
-- `seeqrets.db`  -- the SQLite vault (schema v3 or newer has the slack tables)
+- `seeqrets.db`  -- the SQLite vault
 - `public.key`   -- your NaCl public key (safe to share)
 - `private.key`  -- your NaCl private key (**never share this**)
 - `seeqret.key`  -- the Fernet symmetric key used for at-rest
@@ -110,33 +116,35 @@ persisted Fernet-encrypted.
 jseeqret slack doctor --accept
 ```
 
-On the first run, `--accept` stamps three baselines:
+`--accept` records two baselines:
 
-- **MFA attestation** -- you confirm that the workspace enforces SSO
-  and hardware MFA. This is an operator promise, not a machine check;
-  the CLI re-prompts every 90 days.
-- **Connected-apps hash** -- jseeqret records a hash of the current
-  set of installed workspace apps. On later runs, any drift will
-  warn once and then hard-fail until you re-run `--accept`.
-- **Token age** -- the token you just minted is considered fresh.
+- **MFA attestation** -- after you type `yes` to confirm that the
+  workspace enforces SSO and hardware MFA. This is an operator
+  promise, not a machine check; it expires after 90 days.
+- **Connected-apps hash** -- a hash of the current set of installed
+  workspace apps. On later runs, any change fails the check until you
+  re-run `--accept`.
 
-Without `--accept`, `slack doctor` reports these as failing, which is
-intentional: you must explicitly acknowledge the workspace state
-before `send` or `receive` are allowed to run.
+(The token's age is recorded by `slack login`, not by `doctor`.)
 
-Run `jseeqret slack doctor` (without `--accept`) and make sure it
-is all-green before proceeding.
+Without `--accept`, `slack doctor` reports both as failing. `send
+--via slack` also refuses to run without a current MFA attestation.
+
+Run `jseeqret slack doctor` (without `--accept`) and fix what it
+reports. The "linked users verified" check can only pass after step 5,
+once at least one teammate is linked.
 
 ## 5. Add each teammate as a local user
 
 For each teammate Bob who will receive secrets:
 
-1. Ask Bob to run `jseeqret init` on their machine and send you
-   his `public.key` file (over any channel -- it is not secret).
-2. Add Bob to your vault:
+1. Ask Bob to run `jseeqret init` and then `jseeqret introduction` on
+   his machine, and send you the `jseeqret add user ...` command it
+   prints (over any channel -- it contains only his public key).
+2. Run that command to add Bob to your vault:
    ```bash
-   jseeqret add user --username bob --email bob@example.com \
-       --pubkey "$(cat bob.pub)"
+   jseeqret add user --username bob@bobspc --email bob@example.com \
+       --pubkey <bob's public key>
    ```
 3. **Verify the fingerprint out-of-band.** Call Bob on a voice line
    you trust (or meet in person) and read aloud the five-character
@@ -156,6 +164,23 @@ For each teammate Bob who will receive secrets:
 Repeat for every teammate. The same rules apply to you: every
 teammate should also perform this verification dance against your
 public key before they send you secrets.
+
+### Automated onboarding
+
+Instead of the manual steps above, `jseeqret onboard` runs the same
+exchange over the Slack channel, with the fingerprint checks built in:
+
+1. `jseeqret onboard invite --email bob@example.com --project "myapp:*:*"`
+   records the invite and posts it. `--project` is the filter for the
+   secrets Bob will get.
+2. Bob runs `jseeqret onboard join`, which verifies your fingerprint and
+   introduces him.
+3. `jseeqret onboard watch` picks up the introduction
+   (`onboard status` lists onboardings in progress).
+4. `jseeqret onboard approve bob@example.com` approves Bob after you
+   have verified his fingerprint.
+5. Bob runs `jseeqret onboard receive` to import his teammates and
+   secrets.
 
 ## 6. Ongoing hygiene
 
@@ -178,8 +203,12 @@ It enforces:
 | workspace SSO + MFA attestation <= 90 days     | forgotten MFA policy              |
 | connected-apps unchanged since baseline        | new archiver / DLP mirroring      |
 
-If any check fails, `send` and `receive` refuse to run until you fix
-the issue and re-run `doctor`. This is fail-closed by design. If you
+`send` and `receive` do not run the full doctor. Before `send --via
+slack`, jseeqret checks that you are logged in, a channel is set, the
+token is at most 90 days old and the MFA attestation is current, and
+that the recipient is linked with a matching fingerprint. `receive`
+only checks that Slack is configured. The connected-apps and 180-day
+verification checks run only in `doctor`, so run it regularly. If you
 see a failure, do not override it: investigate.
 
 ### When something drifts
@@ -203,8 +232,9 @@ see a failure, do not override it: investigate.
 When Bob leaves the team:
 
 1. Remove Bob from the Slack workspace (or at least from `#seeqrets`).
-2. On your vault, clear the Slack binding or remove Bob's user record
-   entirely, depending on whether you want to keep historical context.
+2. Remove Bob's user record from your vault (`jseeqret rm user bob`).
+   This also removes his Slack binding; there is no command that
+   clears only the binding.
 3. **Rotate every secret Bob ever received** from the vault. NaCl
    Box has no forward secrecy, so any ciphertext Bob could have
    captured before leaving remains decryptable with his private key.
@@ -218,8 +248,8 @@ leaked:
 1. Remove the teammate from `#seeqrets` immediately.
 2. Rotate every secret they had access to, in the upstream systems
    that issue the credentials. jseeqret cannot do this for you.
-3. Break the local Slack binding so no further sends go to their old
-   key (`jseeqret slack link <user> --handle ''` or remove the user).
+3. Remove the user (`jseeqret rm user <user>`) so no further sends go
+   to their old key.
 4. If the operator's own vault was compromised, rotate the Slack
    user token (`slack logout` + `slack login`) and assume every
    ciphertext ever posted to `#seeqrets` is now retroactively
@@ -230,13 +260,17 @@ leaked:
 ```
 jseeqret init [dir]                              # create a new vault
 jseeqret add user --username --email --pubkey    # add a local user
+jseeqret rm user <user>                          # remove a user
 jseeqret users                                   # list users
+jseeqret onboard invite|watch|approve|status     # automated onboarding
 jseeqret slack login                             # OAuth + channel picker
 jseeqret slack logout                            # wipe Slack config
 jseeqret slack status                            # show current state
 jseeqret slack link <user> [--handle]            # bind by fingerprint
-jseeqret slack doctor [--accept]                 # preflight + baseline
+jseeqret slack doctor [--accept] [--transport]   # health check + baseline
 ```
+
+See the [CLI reference](../../docs-src/cli.md) for every command.
 
 The send/receive flow is covered in [`end-user.md`](end-user.md); it
 is identical for admins and end-users.

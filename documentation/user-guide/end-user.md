@@ -17,9 +17,10 @@ If you are the one setting jseeqret up for a team, read
   specific teammate's public key, posts the ciphertext as a file,
   and mentions the recipient. Only they can decrypt it.
 - **Refuses to send anywhere unsafe.** If the Slack workspace drifts
-  (retention lengthened, a new archiver app installed, a recipient's
-  key changed behind your back), jseeqret fails closed and tells you
-  why. Do not override these errors; talk to your admin.
+  (a new app installed in the workspace, a recipient's key changed
+  behind your back, an expired login or MFA attestation), jseeqret
+  fails closed and tells you why. Do not override these errors; talk
+  to your admin.
 
 ## One-time setup
 
@@ -27,9 +28,10 @@ If you are the one setting jseeqret up for a team, read
 
 Ask your admin which installation they recommend. Typical options:
 
-- `pnpm install -g jseeqret` -- CLI only
-- Windows installer -- CLI + Electron GUI
-- macOS/Linux package via your admin
+- `npm install -g jseeqret` -- the command line tool (any OS)
+- Windows installer -- the GUI only; it does not install the
+  `jseeqret` command. The commands in this guide need the npm
+  install.
 
 Verify with:
 
@@ -40,10 +42,14 @@ jseeqret --version
 ### 2. Create your vault
 
 ```bash
-jseeqret init ~/.seeqrets
+jseeqret init ~ --email you@example.com
+export JSEEQRET=~/seeqret        # Windows: setx JSEEQRET "%USERPROFILE%\seeqret"
 ```
 
-This creates four files inside `~/.seeqrets`:
+`init` creates the vault in a `seeqret` folder inside the directory you
+give it and prints the exact `JSEEQRET` line to run. Keep the default
+username (`<os-user>@<host>`); jseeqret recognises you by it. The vault
+folder contains four files:
 
 - `seeqrets.db`  -- your local vault database
 - `public.key`   -- **your public key. Share this freely.**
@@ -57,11 +63,18 @@ every secret anyone ever sends you is unrecoverable.
 ### 3. Share your public key with your admin
 
 ```bash
-cat ~/.seeqrets/public.key
+jseeqret introduction
 ```
 
-Paste the output into a message to your admin (any channel -- the
-public key is not secret). They will add you to their vault.
+This prints a ready-to-paste `jseeqret add user ...` command with your
+public key, plus your fingerprint. Send the command to your admin (any
+channel -- the public key is not secret). They will add you to their
+vault.
+
+If your admin uses automated onboarding, they send you an invite
+instead: run `jseeqret onboard join` to verify their fingerprint and
+introduce yourself, and `jseeqret onboard receive` once they have
+approved you, to import your teammates and secrets.
 
 ### 4. Verify fingerprints with every teammate
 
@@ -106,8 +119,10 @@ On the first run, `--accept` baselines the workspace's apps and
 records your MFA attestation. Agree only if your admin told you that
 the workspace has SSO + hardware MFA enforced.
 
-After this, run `jseeqret slack doctor` (no flag) and make sure it
-is all-green before sending anything.
+After this, run `jseeqret slack doctor` (no flag) and fix anything
+it reports before sending. The "linked users verified" check only
+passes once you have linked at least one teammate with
+`jseeqret slack link`.
 
 ## Day-to-day: receiving secrets
 
@@ -141,6 +156,11 @@ The default poll interval is 30 seconds. Override with
 - **Nothing imported** -- normal if nobody has sent you anything in
   this polling cycle. Run `jseeqret slack status` to see your
   `last_seen_ts` and confirm the polling is making progress.
+- **Conflicts** -- if a received secret already exists in your vault
+  with a different value, `receive` stops without importing. Decide
+  which value wins and rerun with `--strategy mine` (keep yours),
+  `--strategy theirs` (take the new one) or `--strategy newer` (keep
+  the most recently changed).
 
 ## Day-to-day: sending a secret
 

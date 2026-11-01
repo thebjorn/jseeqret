@@ -26,14 +26,18 @@ encrypted SQLite database (`seeqrets.db`), a symmetric Fernet key
 `private.key`). Create one with:
 
 ```bash
-jseeqret init ./my-vault \
-    --user alice \
-    --email alice@example.com
+jseeqret init ./my-vault --email alice@example.com
 ```
 
-The default vault location is resolved from the `JSEEQRET` env var
-(falling back to `SEEQRET`, then `/srv/.seeqret`). For the rest of
-this guide, point the env var at your fresh vault:
+This creates the vault in `./my-vault/seeqret`. Your username defaults
+to `<os-user>@<host>`; keep that default, because `whoami` and
+`introduction` recognise you by it.
+
+jseeqret finds the vault through the `JSEEQRET` env var, then
+`SEEQRET` (either can be a path or the name of a vault registered with
+`jseeqret vault add`), then the registry default (`jseeqret vault use`),
+then `/srv/.seeqret` (except on Windows, where it is an error). For the
+rest of this guide, point the env var at your fresh vault:
 
 ```bash
 export JSEEQRET="$(pwd)/my-vault/seeqret"
@@ -65,7 +69,16 @@ DB_URL=myapp:prod:DATABASE_URL
 ```
 
 Then run `jseeqret env` in the same directory to produce `.env`.
-The `DB_URL=filter` form renames the materialized variable.
+
+- A line with a filter spec writes every matching secret.
+- `NAME=filter` writes the matching secret under a different name. An
+  unquoted right side containing a colon is a filter.
+- `NAME=value` (no colon) and `NAME="value"` (always) write a constant,
+  without looking anything up.
+- `@seeqret>=1.0` fails the run if the installed jseeqret is older than
+  that version.
+
+See the [CLI reference](./cli.md) for every command.
 
 ## Using the library
 
