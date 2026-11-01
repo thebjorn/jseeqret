@@ -135,6 +135,9 @@ or registry default is set.
 | | seeqret (Python) | jseeqret (JavaScript) |
 |---|---|---|
 | `get()` | Synchronous | Async (returns Promise) |
+| `get()` naming | `'app:env:key'` or `key, app=, env=` | `'app:env:key'` or `key, app, env` |
+| `get()` no match | `SecretNotFound` (a `KeyError`) | `SecretNotFound` (an `Error`) |
+| `get()` several matches | `AmbiguousSecret` (a `LookupError`) | `AmbiguousSecret` (an `Error`) |
 | `get_sync()` | N/A | Synchronous (after `init()`) |
 | `init()` | N/A | Required for sync API |
 | `close()` | N/A | Releases WASM resources |

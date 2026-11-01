@@ -34,6 +34,74 @@ export function has_glob_chars(value) {
     return /[[\].*?]/.test(value)
 }
 
+/**
+ * Build a WHERE clause for one field: LIKE for glob values, = otherwise.
+ * @param {string} field
+ * @param {string} value
+ * @returns {{ clause: string, params: string[] }}
+ */
+function sql_where_field(field, value) {
+    if (has_glob_chars(value)) {
+        return { clause: `${field} LIKE ?`, params: [glob_to_sql(value)] }
+    }
+    return { clause: `${field} = ?`, params: [value] }
+}
+
+/**
+ * Build an OR clause for comma-separated values.
+ * @param {string} field
+ * @param {string[]} values
+ * @returns {{ clause: string, params: string[] }}
+ */
+function sql_where_field_or(field, values) {
+    const clauses = []
+    const params = []
+
+    for (const v of values) {
+        if (v === '*') {
+            clauses.push(`${field} LIKE ?`)
+            params.push('%')
+        } else {
+            const { clause, params: p } = sql_where_field(field, v)
+            clauses.push(clause)
+            params.push(...p)
+        }
+    }
+
+    return { clause: `(${clauses.join(' OR ')})`, params }
+}
+
+/**
+ * Build a full SQL WHERE clause from a filter dict such as
+ * `{ app: 'myapp', env: '*', key: 'DB_*' }`. Glob values match with
+ * LIKE, comma-separated values with OR. Returns an empty clause for an
+ * empty dict.
+ *
+ * @param {Object<string, string>} filters
+ * @returns {{ clause: string, params: string[] }}
+ */
+export function sql_where_clause(filters) {
+    if (!filters || Object.keys(filters).length === 0) {
+        return { clause: '', params: [] }
+    }
+
+    const clauses = []
+    const params = []
+
+    for (const [k, v] of Object.entries(filters)) {
+        const { clause, params: p } = v.includes(',')
+            ? sql_where_field_or(k, v.split(','))
+            : sql_where_field(k, v)
+        clauses.push(clause)
+        params.push(...p)
+    }
+
+    return {
+        clause: ' WHERE ' + clauses.join(' AND '),
+        params,
+    }
+}
+
 export class FilterSpec {
     /**
      * @param {string} filter_spec - filter string like "app:env:key"

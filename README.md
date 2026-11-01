@@ -86,10 +86,26 @@ import { get, get_sync, init, close } from 'jseeqret'
 
 // Async
 const value = await get('myapp:prod:DB_PASSWORD')
+const same = await get('DB_PASSWORD', 'myapp', 'prod')
 
-// Sync
+// Sync (after `await init()`)
 const value = get_sync('myapp:prod:DB_PASSWORD')
 ```
+
+A secret is named the same way as on the command line. Empty parts mean
+`*` (`'::DB_PASSWORD'` is `'*:*:DB_PASSWORD'`), and `*` and other glob
+characters are wildcards. The lookup must match exactly one secret:
+
+- no match throws `SecretNotFound`, whose message names the
+  `app:env:key` looked up, the vault file, and a `jseeqret list` command
+  to find the key;
+- several matches throw `AmbiguousSecret`, which lists the matching
+  `app:env:key` names (`err.matches`), never their values;
+- a malformed reference (e.g. `'myapp:prod'`), or one combined with the
+  `app`/`env` arguments, throws an `Error`.
+
+Both error classes are exported from `jseeqret` and `jseeqret/core`.
+This matches Python seeqret's `seeqret.get()`.
 
 ## Electron GUI
 
