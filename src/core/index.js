@@ -8,7 +8,7 @@
  * @module core
  * @example
  * import { get, init, FilterSpec } from 'jseeqret/core'
- * await init('/srv/.seeqret')
+ * await init()
  * const value = await get('myapp:prod:DB_URL')
  */
 
@@ -19,6 +19,7 @@ export { FilterSpec } from './filter.js'
 export { get_seeqret_dir, is_initialized, current_user } from './vault.js'
 export * from './crypto/index.js'
 export { run_migrations, upgrade_db } from './migrations.js'
-export { get, get_sync, init, close, reload } from './api.js'
+export { get, get_sync, init, close, reload, parse_reference } from './api.js'
+export { SecretNotFound, AmbiguousSecret } from './errors.js'
 export { get_serializer, list_serializers } from './serializers/index.js'
 export { parse_env } from './envfile.js'

@@ -13,7 +13,7 @@ import { get_seeqret_dir } from './vault.js'
 import { Secret } from './models/secret.js'
 import { User } from './models/user.js'
 import { Remote } from './models/remote.js'
-import { glob_to_sql, has_glob_chars } from './filter.js'
+import { sql_where_clause } from './filter.js'
 
 let SQL = null
 
@@ -77,63 +77,10 @@ export class SqliteStorage {
     }
 
     /**
-     * Build a WHERE field clause with parameter.
-     */
-    _where_field(field, value) {
-        if (has_glob_chars(value)) {
-            return { clause: `${field} LIKE ?`, params: [glob_to_sql(value)] }
-        }
-        return { clause: `${field} = ?`, params: [value] }
-    }
-
-    /**
-     * Build an OR clause for comma-separated values.
-     */
-    _where_field_or(field, values) {
-        const clauses = []
-        const params = []
-
-        for (const v of values) {
-            if (v === '*') {
-                clauses.push(`${field} LIKE ?`)
-                params.push('%')
-            } else {
-                const { clause, params: p } = this._where_field(field, v)
-                clauses.push(clause)
-                params.push(...p)
-            }
-        }
-
-        return { clause: `(${clauses.join(' OR ')})`, params }
-    }
-
-    /**
      * Build a full WHERE clause from a filter dict.
      */
     _where_clause(filters) {
-        if (!filters || Object.keys(filters).length === 0) {
-            return { clause: '', params: [] }
-        }
-
-        const clauses = []
-        const params = []
-
-        for (const [k, v] of Object.entries(filters)) {
-            if (v.includes(',')) {
-                const { clause, params: p } = this._where_field_or(k, v.split(','))
-                clauses.push(clause)
-                params.push(...p)
-            } else {
-                const { clause, params: p } = this._where_field(k, v)
-                clauses.push(clause)
-                params.push(...p)
-            }
-        }
-
-        return {
-            clause: ' WHERE ' + clauses.join(' AND '),
-            params,
-        }
+        return sql_where_clause(filters)
     }
 
     /**

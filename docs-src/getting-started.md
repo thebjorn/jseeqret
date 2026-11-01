@@ -74,8 +74,13 @@ The same core used by the CLI is exposed as an npm package:
 ```js
 import { init, get } from 'jseeqret/core'
 
-await init('/srv/.seeqret')
+await init()    // opens the vault from JSEEQRET / SEEQRET or the registry default
 const db_url = await get('myapp:prod:DATABASE_URL')
 ```
+
+`get()` must match exactly one secret. It throws `SecretNotFound` when
+nothing matches and `AmbiguousSecret` when several secrets do (e.g.
+`get('::DATABASE_URL')` with the key in both prod and dev); both
+messages say what was looked up and never contain secret values.
 
 See the {@link core | core module} for the full API surface.

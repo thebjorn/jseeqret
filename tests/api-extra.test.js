@@ -95,7 +95,7 @@ describe('API: get_sync() additional cases', () => {
 
     it('throws descriptive error for missing secret', async () => {
         await init()
-        expect(() => get_sync('MISSING', 'myapp', 'prod')).toThrow('Secret not found: myapp:prod:MISSING')
+        expect(() => get_sync('MISSING', 'myapp', 'prod')).toThrow('No secret myapp:prod:MISSING')
     })
 })
 

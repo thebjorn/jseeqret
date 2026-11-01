@@ -49,7 +49,7 @@ describe('API: get()', () => {
     })
 
     it('throws on missing secret', async () => {
-        await expect(get('NOPE', 'myapp', 'prod')).rejects.toThrow('Secret not found')
+        await expect(get('NOPE', 'myapp', 'prod')).rejects.toThrow('No secret myapp:prod:NOPE')
     })
 })
 
