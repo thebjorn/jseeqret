@@ -35,7 +35,8 @@ will run.
 - SSO + hardware MFA enforced at the workspace level. This is a
   **prerequisite**, not a hardening step. Without it, a phished Slack
   account can post forged ciphertext blobs at will.
-- Node.js 18 or newer on every client machine.
+- Node.js 22.23.4+, 24.22.1+ or 26.12.1+ (releases with the October 2026
+  security fixes) on every machine that runs the CLI.
 - jseeqret installed on every client machine. The commands in this
   guide need the CLI (`npm install -g jseeqret`); the Windows installer
   ships only the GUI.
