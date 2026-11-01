@@ -22,7 +22,7 @@
     "electron"
   ],
   "engines": {
-    "node": ">=18"
+    "node": "^22.23.4 || ^24.22.1 || >=26.12.1"
   },
   "packageManager": "pnpm@10.11.0",
   "main": "./out/main/index.js",
