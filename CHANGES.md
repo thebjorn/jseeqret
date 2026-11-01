@@ -1,240 +1,135 @@
-# CHANGES — jseeqret vs seeqret API Differences
+# CHANGES — jseeqret vs seeqret differences
 
-This document lists API differences between **jseeqret** (JavaScript, v0.5.7)
-and **seeqret** (Python, v0.3.8) to help keep the two projects synchronized.
-
----
-
-## Features in jseeqret but NOT in seeqret
-
-### Multi-vault registry
-
-jseeqret supports managing multiple vaults through a registry stored at
-`~/.seeqret/vaults.json`.
-
-- **CLI commands:**
-  - `jseeqret vault list` — list registered vaults
-  - `jseeqret vault add <name> <path>` — register a vault
-  - `jseeqret vault remove <name>` — unregister a vault
-  - `jseeqret vault use <name>` — set the default vault
-  - `--vault <name>` — global option to select vault per invocation
-
-- **Vault resolution order:**
-  1. `JSEEQRET` env var (path or vault name)
-  2. `SEEQRET` env var (path or vault name)
-  3. Registry default (`_default` key in `vaults.json`)
-  4. Linux fallback: `/srv/.seeqret`
-
-- **Core module:** `src/core/vault-registry.js` — `registry_add()`,
-  `registry_remove()`, `registry_use()`, `registry_list()`,
-  `registry_resolve()`, `registry_default()`
-
-### `JSEEQRET` environment variable
-
-jseeqret checks `JSEEQRET` **before** `SEEQRET` for vault directory resolution.
-seeqret only checks `SEEQRET`.
-
-### `reload()` API function
-
-```js
-import { reload } from 'jseeqret'
-await reload()  // re-reads database from disk
-```
-
-seeqret does not have an equivalent — the Python API only exposes `get()`.
-
-### `get_sync()` API function
-
-```js
-import { init, get_sync } from 'jseeqret'
-await init()           // one-time async setup
-const val = get_sync('DB_PASSWORD')  // synchronous after init
-```
-
-seeqret's `get()` is already synchronous (SQLite3 is native in Python), so
-there is no need for separate sync/async variants.
-
-### `init()` and `close()` API functions
-
-jseeqret requires explicit lifecycle management because sql.js needs async
-WASM initialization:
-
-```js
-await init()    // load WASM + open database
-// ... use get_sync() ...
-close()         // release resources
-```
-
-seeqret opens the database on demand and relies on Python's GC.
-
-### Electron GUI
-
-jseeqret includes a full Electron + Svelte 5 desktop application with:
-- Secret management (list, add, edit, delete)
-- User management
-- Multi-vault switching
-- Import/export
-- `jseeqret gui` CLI command to launch
-
-seeqret has no GUI.
-
-### `server init` command
-
-```bash
-jseeqret server init --email <email> --pubkey <pubkey>
-```
-
-Initializes a vault at `/srv/.seeqret` for headless servers without an
-existing user identity. seeqret does not have this command.
-
-### `add text` command
-
-```bash
-jseeqret add text <name> --app <app> --env <env>
-```
-
-Reads secret value from stdin (until EOF). Useful for multi-line secrets
-like certificates or SSH keys.
-
-seeqret does have `add text` as well — **verify this is synchronized**.
-
-### `rm key` subcommand structure
-
-jseeqret uses `jseeqret rm key <filter>` while seeqret may use a different
-command structure for deletion. **Verify parity.**
+This document lists the differences between **jseeqret** (JavaScript, 2.8)
+and **seeqret** (Python, 2.0) to help keep the two projects synchronized.
+Both read and write the same vault, so the database schema, key files and
+encryption formats must stay identical (see the end of this file).
 
 ---
 
-## Features in seeqret but NOT in jseeqret
-
-### GPG integration
-
-seeqret has optional GPG support via `python-gnupg`. jseeqret does not
-implement GPG-based operations.
-
-### Windows `%APPDATA%\seeqret` fallback
-
-On Windows with no `SEEQRET` env var, Python seeqret falls back to
-`%APPDATA%\seeqret`. jseeqret throws an error on Windows if no env var
-or registry default is set.
-
----
-
-## API Differences (same feature, different behavior)
-
-### Vault directory env var
-
-| | seeqret (Python) | jseeqret (JavaScript) |
-|---|---|---|
-| Primary env var | `SEEQRET` | `JSEEQRET` (then `SEEQRET`) |
-| Vault name lookup | No | Yes (via registry) |
-| Windows fallback | `%APPDATA%\seeqret` | Error (no fallback) |
-
-### Public API surface
+## Library API
 
 | | seeqret (Python) | jseeqret (JavaScript) |
 |---|---|---|
 | `get()` | Synchronous | Async (returns Promise) |
 | `get()` naming | `'app:env:key'` or `key, app=, env=` | `'app:env:key'` or `key, app, env` |
+| `get()` wildcards | `*`/globs match; exactly one match required | same |
 | `get()` no match | `SecretNotFound` (a `KeyError`) | `SecretNotFound` (an `Error`) |
 | `get()` several matches | `AmbiguousSecret` (a `LookupError`) | `AmbiguousSecret` (an `Error`) |
-| `get_sync()` | N/A | Synchronous (after `init()`) |
-| `init()` | N/A | Required for sync API |
-| `close()` | N/A | Releases WASM resources |
-| `reload()` | N/A | Re-reads DB from disk |
+| `get_sync()` | N/A (`get()` is already synchronous) | Synchronous, after `init()` |
+| `init()` / `close()` | N/A (opens the database on demand) | Load sql.js WASM and the vault / release it |
+| `reload()` | N/A | Re-read the database from disk |
+| `parse_reference()` | `seeqret.storage.get_secret.parse_reference` | exported from `jseeqret` |
 
-### CLI framework
+## Vault location
 
-| | seeqret | jseeqret |
+| | seeqret (Python) | jseeqret (JavaScript) |
 |---|---|---|
-| Framework | Click | Commander.js |
-| Global log option | Yes | `-L, --log <level>` |
-| Global vault option | No | `--vault <name>` |
-
-### `info` command output
-
-| | seeqret | jseeqret |
-|---|---|---|
-| Default output | Hierarchical command tree | Version, vault dir, owner, counts |
-| `--dump` flag | Dumps command tree as JSON | Dumps vault info as JSON |
-
-### Database migrations
-
-| | seeqret | jseeqret |
-|---|---|---|
-| Schema v1 | `db_v_001.py` | Part of `migrations.js` |
-| Schema v2 | `db_v_002.py` | Part of `migrations.js` |
-| Adds `type` column | v2 | v2 |
-| Adds `updated` column | Unknown | v2 (`BOOL DEFAULT false`) |
-
-### Symmetric key filename
-
-Both projects support `seeqret.key`. seeqret also accepts the legacy name
-`symetric.key` — jseeqret does not (verify if needed).
+| Environment variable | `SEEQRET` | `JSEEQRET`, then `SEEQRET` |
+| Value can be a registry name | No | Yes |
+| Registry default (`~/.seeqret/vaults.json`) | No | Yes (`vault use`) |
+| Fallback | `/srv/.seeqret` on Linux/macOS; Windows requires `SEEQRET` | `/srv/.seeqret` on Linux/macOS; Windows requires an env var or registry default |
 
 ---
 
-## Shared CLI Commands (feature parity)
+## CLI
 
-Both projects implement these commands with equivalent behavior:
+### Shared commands
 
-| Command | Status |
+Same command names, arguments and behavior unless noted.
+
+| Command | Notes |
 |---|---|
-| `init [dir]` | Parity |
-| `list [--filter]` | Parity |
-| `get <filter>` | Parity |
-| `add key <name> <value> [--app] [--env] [--type]` | Parity |
-| `add user --username --email --pubkey` | Parity (minor option name differences) |
-| `edit value <filter> <value> [--all]` | Parity |
-| `users [--export]` | Parity |
-| `owner` | Parity |
-| `whoami` | Parity |
-| `keys` | Parity |
-| `upgrade` | Parity |
-| `backup` | Parity |
-| `export --to [--filter] [--serializer] [--out] [--windows\|--linux]` | Parity |
-| `load --from-user [--file\|--value] [--serializer]` | Parity |
-| `env` | Parity |
-| `importenv <file> [--app] [--env] [--update] [--dry-run]` | Parity |
-| `setenv <filter> [--dry-run]` | Parity (Windows only) |
-| `serializers` | Parity |
-| `introduction` | Parity |
+| `init [dir]`, `server init` | |
+| `get <filter>` | Fails on zero or several matches |
+| `add key <name> <value> [--app] [--env] [--force]` | jseeqret also has `--type` |
+| `add text <name>` | jseeqret reads piped stdin to EOF; seeqret reads interactively until Ctrl-D, so it cannot be piped |
+| `add user --username --email --pubkey [--name]` | seeqret prompts for missing options; jseeqret requires them |
+| `edit value <filter> <value> [--all]` | |
+| `rm key <filter>`, `rm user <username> [--yes]` | |
+| `users [--export]`, `owner`, `whoami`, `public-key`, `introduction` | |
+| `upgrade`, `serializers` | |
+| `backup` | Password-protected, self-decrypting HTML in both |
+| `export --to <user\|self\|all> [-f] [-s] [-o] [-w\|-l]` | |
+| `load [-u] [-f\|-v] [-s]` | jseeqret also has `--strategy` |
+| `send [filters] --to <user> [--via file\|slack]` | |
+| `receive [--via slack] [--watch] [--interval]` | jseeqret also has `--strategy` |
+| `slack login\|logout\|status\|link\|doctor` | jseeqret's `doctor` also has `--transport` |
+| `env`, `importenv <file>`, `setenv <filter>` (Windows) | |
+| `remote add\|list\|rm` | |
+| `push <alias> [filter]`, `verify <alias> [filter]` | ssh remotes; seeqret also accepts several comma-separated aliases |
+| `-L, --log <level>` | |
+
+### Different behavior
+
+| | seeqret | jseeqret |
+|---|---|---|
+| `list` filter | positional `FILTERSPEC` (or `-f`), plus `--env` for .env output | `-f` only |
+| `info` | Hierarchical command tree (`--dump`: as JSON) | Version, vault dir, owner, counts (`--dump`: as JSON) |
+| Conflicting import (`load`, `receive`) | Overwrites existing values | Lists conflicts and stops; `--strategy mine\|theirs\|newer` resolves them |
+
+### Only in jseeqret
+
+- **Electron GUI** (`jseeqret gui`): secrets, users, vault switching,
+  import/export, onboarding.
+- **Vault registry**: `vault add|use|list|remove`, the global
+  `--vault <name>` option.
+- **Onboarding over Slack**: `onboard invite|join|watch|approve|receive|status`.
+- `--strategy` on `load` and `receive`; `slack doctor --transport`.
+- `user-list` serializer (encrypted list of user records, used by onboarding).
+
+### Only in seeqret
+
+- `pull <alias> KEY...`: fetch secrets from an ssh remote into the vault.
+- `push vercel`, `verify vercel`: Vercel project environment variables.
+- `list --env` and the positional `list` filter.
 
 ---
 
-## Shared Serializers
+## Shared serializers
 
 | Tag | seeqret | jseeqret |
 |---|---|---|
-| `env` | Yes | Yes |
 | `json-crypt` | Yes | Yes |
 | `command` | Yes | Yes |
-| `backup` | N/A | Yes (jseeqret-only for `backup` command) |
+| `env` | Yes | Yes |
+| `backup` (plaintext JSON, insecure) | Yes | Yes |
+| `user-list` | No | Yes |
 
 ---
 
-## Database & Encryption Compatibility
+## Database & encryption compatibility
 
 These are shared and must remain identical:
 
-- **SQLite database:** `seeqrets.db` with tables `migrations`, `users`, `secrets`
-- **Symmetric encryption:** Fernet (AES-128-CBC + HMAC-SHA256)
-- **Asymmetric encryption:** NaCl (X25519 + XSalsa20-Poly1305)
-- **Key files:** `seeqret.key`, `public.key`, `private.key` (base64-encoded)
+- **SQLite database:** `seeqrets.db`. Any new migration in one project
+  needs a matching migration in the other:
+
+  | Version | Change |
+  |---|---|
+  | v1 | `migrations`, `users`, `secrets` |
+  | v2 | `secrets.type`, `secrets.updated` |
+  | v3 | Slack columns on `users`, `kv` table |
+  | v4 | `onboarding` table |
+  | v5 | `users.name` |
+  | v6 | `secrets.updated_at` |
+  | v7 | `remotes` table |
+
+- **Symmetric encryption:** Fernet (AES-128-CBC + HMAC-SHA256), key in
+  `seeqret.key`
+- **Asymmetric encryption:** NaCl (X25519 + XSalsa20-Poly1305), keys in
+  `public.key` / `private.key` (base64)
 - **Filter spec format:** `app:env:key` with glob patterns (`*`, `?`)
 
 ---
 
-## Action Items for Synchronization
+## Open synchronization questions
 
-1. **Multi-vault support** — Port vault registry to seeqret (Python), or
-   decide this is jseeqret-only.
-2. **`JSEEQRET` env var** — Should seeqret also check `JSEEQRET`?
-3. **`info --dump`** — Align output format between the two projects.
-4. **Windows fallback** — Add `%APPDATA%\seeqret` fallback to jseeqret,
-   or remove from seeqret.
-5. **`symetric.key` legacy name** — Should jseeqret also support it?
-6. **`server init`** — Port to seeqret if useful.
-7. **`add text`** — Verify both implementations handle stdin identically.
-8. **`rm` command structure** — Verify identical subcommand syntax.
-9. **`updated` column in schema v2** — Verify seeqret also has this.
+1. **Vault registry** — port to seeqret, or keep it jseeqret-only?
+2. **`JSEEQRET` env var** — should seeqret also check it?
+3. **`info`** — align the output of the two projects?
+4. **Conflicting imports** — seeqret silently overwrites; should it adopt
+   jseeqret's `--strategy`?
+5. **`add text`** — make seeqret read piped stdin like jseeqret?
+6. **`list`** — add the positional filter and `--env` to jseeqret?
+7. **`pull`, Vercel targets, multi-alias `push`/`verify`** — port to jseeqret?

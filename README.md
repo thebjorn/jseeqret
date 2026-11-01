@@ -41,8 +41,9 @@ invites/approvals), install it separately with `npm install -g jseeqret`.
 ## CLI Usage
 
 ```bash
-# Initialize a new vault
-jseeqret init . --user myuser --email user@example.com
+# Initialize a new vault (creates ./seeqret; your user is user@host)
+jseeqret init . --email user@example.com
+export JSEEQRET="$PWD/seeqret"    # Windows: setx JSEEQRET "%CD%\seeqret"
 
 # Add a secret
 jseeqret add key DB_PASSWORD "s3cret" --app myapp --env prod
@@ -61,10 +62,10 @@ jseeqret edit value "myapp:prod:DB_PASSWORD" "new-value"
 jseeqret rm key "myapp:prod:DB_PASSWORD"
 
 # User management
+jseeqret introduction            # your ready-to-paste `add user` command
+jseeqret add user --username bob@hispc --email bob@example.com --pubkey <key>
 jseeqret users
-jseeqret owner
 jseeqret whoami
-jseeqret public-key
 
 # Multi-vault management
 jseeqret vault add myvault /path/to/vault
@@ -77,12 +78,21 @@ jseeqret export --to otheruser
 jseeqret load -f export.json
 jseeqret env                    # generate .env from template
 jseeqret importenv .env         # import .env file
+
+# Slack exchange, onboarding, ssh remotes
+jseeqret send "myapp:prod:*" --to bob --via slack
+jseeqret receive
+jseeqret onboard invite --email new@example.com --project "myapp:*:*"
+jseeqret push myhost "myapp:prod:*"
 ```
+
+See the [CLI reference](https://thebjorn.github.io/jseeqret/documents/CLI_Reference.html)
+for every command and option.
 
 ## Library API
 
 ```javascript
-import { get, get_sync, init, close } from 'jseeqret'
+import { get, get_sync, init, close, reload } from 'jseeqret'
 
 // Async
 const value = await get('myapp:prod:DB_PASSWORD')
@@ -104,8 +114,12 @@ characters are wildcards. The lookup must match exactly one secret:
 - a malformed reference (e.g. `'myapp:prod'`), or one combined with the
   `app`/`env` arguments, throws an `Error`.
 
-Both error classes are exported from `jseeqret` and `jseeqret/core`.
+Both error classes are exported from `jseeqret` and `jseeqret/core`, as
+is `parse_reference()`, which splits a reference into `[key, app, env]`.
 This matches Python seeqret's `seeqret.get()`.
+
+The database and key are cached after the first call. `reload()` re-reads
+the vault (e.g. after the CLI changed it) and `close()` releases it.
 
 ## Electron GUI
 
@@ -133,6 +147,7 @@ pnpm dist:nsis # build signed Windows installer
 - `sql.js` - Pure JS SQLite (WASM, no native bindings)
 - `tweetnacl` / `tweetnacl-util` - NaCl crypto
 - `commander` - CLI framework
+- `@slack/web-api` - Slack exchange transport
 - `cli-table3` - Terminal tables
 - `electron-vite` - Electron + Vite + Svelte 5
 

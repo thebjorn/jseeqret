@@ -30,6 +30,9 @@ attack surfaces as a fingerprint mismatch at decrypt time.
 | `core/slack/identity.js`      | Slack-handle to user/pubkey binding        |
 | `core/slack/padding.js`       | Size-bucket padding for ciphertext blobs   |
 | `core/slack/transport.js`     | `send_blob` / `poll_inbox` / `delete_thread` |
+| `core/slack/receive.js`       | Download, verify and import received blobs |
+| `core/slack/session.js`       | Fail-closed preflight before `send`        |
+| `core/slack/selftest.js`      | Live round-trip for `slack doctor --transport` |
 
 The CLI surface lives in `src/cli/commands/slack.js` plus `send.js`
 and `receive.js`.
@@ -55,14 +58,24 @@ and `receive.js`.
    channel for new inbox threads addressed to the current user,
    downloads the blob, unpads, decrypts with the local private key,
    and imports the resulting secrets. `--watch` turns this into a
-   long-running poll loop.
+   long-running poll loop. If a received secret conflicts with a
+   different local value, `receive` fails closed; `--strategy
+   mine|theirs|newer` decides instead.
 
-5. **Doctor** — `jseeqret slack doctor` is the preflight health
-   check: it verifies the token still works, warns about MFA
-   attestation age, and baselines the list of connected workspace
-   apps so a future admin who adds a rogue app surfaces as a warning
-   rather than a silent pass. `--accept` re-baselines after a
-   legitimate change.
+5. **Doctor** — `jseeqret slack doctor` is the health check. It
+   verifies the token and channel, fails if the workspace SSO + MFA
+   attestation is missing or older than 90 days, checks that linked
+   users were verified in the last 180 days and that their stored
+   fingerprints still match, and fails if the list of connected
+   workspace apps differs from the recorded baseline, so a rogue app
+   added by an admin cannot pass silently. `--accept` records the MFA
+   attestation and re-baselines the connected apps after a legitimate
+   change. `--transport` runs a live self-test: it sends an envelope to
+   yourself, checks that the poller finds it, and deletes it.
+
+   Before `send --via slack`, jseeqret checks that you are logged in,
+   a channel is set, the token is at most 90 days old and the MFA
+   attestation is current.
 
 ## Design decisions
 

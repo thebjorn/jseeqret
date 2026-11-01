@@ -313,7 +313,7 @@ const slack_doctor = new Command('doctor')
                 : `${mfa_age} days old`
         )
 
-        // Connected-apps baseline -- warn on first change, fail thereafter.
+        // Connected-apps baseline -- any change from the baseline fails.
         // With --accept we re-baseline to the live hash and report the
         // accepted state, so this run does not fail on what it just set.
         if (snap.user_token) {

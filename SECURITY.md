@@ -4,8 +4,8 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 0.5.x   | :white_check_mark: |
-| < 0.5   | :x:                |
+| 2.x     | :white_check_mark: |
+| < 2.0   | :x:                |
 
 ## Reporting a Vulnerability
 
@@ -28,7 +28,9 @@ jseeqret is a secrets manager that stores encrypted secrets in a local SQLite va
 
 - **Fernet encryption** (AES-128-CBC with HMAC-SHA256) for secret values, byte-compatible with Python's `cryptography.fernet.Fernet`
 - **NaCl public-key encryption** (via `tweetnacl`) for key exchange between users
-- Encryption keys are derived and stored per-user in the vault
+- Keys are generated randomly per vault by `jseeqret init` (the Fernet key in `seeqret.key`, the NaCl key pair in `public.key`/`private.key`) and stored in the vault directory
+- `jseeqret backup` encrypts the whole vault into a self-decrypting HTML file with AES-256-GCM, using a key derived from your password with PBKDF2-SHA256 (600,000 iterations)
+- The optional Slack exchange carries only NaCl-encrypted envelopes; see `docs-src/slack-exchange.md` for its security model
 
 ### Vault Storage
 
@@ -52,7 +54,7 @@ jseeqret does **not** protect against:
 
 ## Best Practices
 
-- Keep the vault file (`seeqret.db`) out of version control (add to `.gitignore`)
+- Keep the vault database (`seeqrets.db`) and key files out of version control (add them to `.gitignore`)
 - Restrict filesystem permissions on the vault directory
 - Rotate secrets periodically
 - Keep jseeqret and its dependencies up to date
@@ -64,6 +66,8 @@ jseeqret uses the following security-relevant dependencies:
 
 | Package | Purpose |
 | --- | --- |
-| Node.js `crypto` | AES-128-CBC, HMAC-SHA256, PBKDF2 (Fernet implementation) |
+| Node.js `crypto` | AES-128-CBC, HMAC-SHA256 (Fernet implementation) |
+| Web Crypto (in the backup HTML) | PBKDF2-SHA256 + AES-256-GCM (password-protected backup) |
 | `tweetnacl` | NaCl public-key cryptography (Curve25519, XSalsa20, Poly1305) |
 | `sql.js` | SQLite via WASM (vault storage) |
+| `@slack/web-api` | Slack exchange transport (holds the Slack user token) |

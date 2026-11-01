@@ -23,12 +23,17 @@ jseeqret is a three-layer project sharing one core:
                |  - storage: sql.js SQLite        |
                |  - filter: app:env:key matcher  |
                |  - serializers: import/export   |
+               |  - slack: exchange transport    |
+               |  - onboarding, ssh remotes,     |
+               |    vault registry               |
                +---------------------------------+
 ```
 
-All three frontends share the same core, which is what the published
-npm package exports. Anything that can be done from the CLI can be
-done from a Node.js script via the library.
+All three frontends share the same core. The npm package exports two
+entry points: `jseeqret` (the `get()` API) and `jseeqret/core` (vault
+reads, storage, models, crypto, filters, migrations and serializers).
+The Slack exchange, onboarding, ssh remotes and the vault registry are
+used by the CLI and GUI but are not part of the exported library.
 
 ## Vault directory
 

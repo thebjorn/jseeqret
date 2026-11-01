@@ -16,7 +16,7 @@ pnpm test:watch        # Watch mode
 pnpm test:coverage     # Coverage report (v8, covers src/core/**)
 pnpm cli               # Run CLI directly: node ./src/cli/index.js
 pnpm bench             # Performance benchmark (get operations/sec)
-pnpm docs:build         # Generate JSDoc docs
+pnpm docs:build        # Generate the TypeDoc site into docs/ (CI rebuilds and deploys it)
 ```
 
 Run a single test file: `pnpm exec vitest run tests/api.test.js`
@@ -31,16 +31,23 @@ Run a single test file: `pnpm exec vitest run tests/api.test.js`
 
 ### Core modules
 
-- `api.js` — Public async/sync API (`get`, `get_sync`, `init`, `close`)
+- `api.js` — Public async/sync API (`get`, `get_sync`, `init`, `close`, `reload`, `parse_reference`); `get` takes `app:env:key` and must match exactly one secret
+- `errors.js` — `SecretNotFound`, `AmbiguousSecret` (thrown by `get`)
 - `sqlite-storage.js` — `SqliteStorage` class, all CRUD via sql.js (pure JS/WASM SQLite, no native bindings)
 - `crypto/fernet.js` — Fernet encryption (AES-128-CBC + HMAC-SHA256) for secrets at rest
 - `crypto/nacl.js` — NaCl (X25519 + XSalsa20-Poly1305) for transit encryption
-- `models/secret.js` — `Secret` class with encrypt/decrypt
-- `models/user.js` — `User` class with public key management
-- `filter.js` — `FilterSpec` for glob-pattern matching (`app:env:*`)
-- `vault.js` — Vault directory resolution (env var `JSEEQRET` or `SEEQRET`, default `/srv/.seeqret`)
-- `migrations.js` — Database schema migrations
-- `serializers/` — Output format handlers (env, json-crypt, backup, command)
+- `models/` — `Secret` (encrypt/decrypt), `User` (public keys), `Remote` (ssh remotes)
+- `filter.js` — `FilterSpec` for glob-pattern matching (`app:env:*`) and `sql_where_clause()`
+- `vault.js` — Vault directory resolution: `JSEEQRET`, then `SEEQRET` (path or registry name), then the registry default, then `/srv/.seeqret` (not on Windows)
+- `vault-registry.js` — Named vaults in `~/.seeqret/vaults.json`
+- `migrations.js` — Database schema migrations (must stay in step with Python seeqret's)
+- `serializers/` — Output formats (`json-crypt`, `command`, `env`, `backup`, `user-list`), plus the transport `envelope` and the self-decrypting HTML backup
+- `user-resolve.js` — Bare-name / `user@host` user resolution
+- `merge.js` — Conflict strategies (`mine`/`theirs`/`newer`) for `load` and `receive`
+- `envfile.js` — `.env` parser
+- `remote-ssh.js` — ssh remotes for `push`/`verify`
+- `slack/` — Slack exchange transport (OAuth, client, config, identity binding, padding, transport, receive, session preflight, self-test)
+- `onboarding.js` — Automated onboarding state machine
 
 ### Vault structure
 
