@@ -127,7 +127,48 @@ describe('CLI: env', () => {
         ], { vault_dir: tmp_dir, cwd: work_dir })
 
         expect(result.exit_code).not.toBe(0)
-        expect(result.stderr).toContain('Duplicate key')
+        expect(result.stderr).toContain('Duplicate key: DB_HOST')
+        // Both sources are reported with their env.template line numbers
+        expect(result.stderr).toMatch(
+            /env\.template:1\s+DB_HOST=constant\s+->\s+constant value/
+        )
+        expect(result.stderr).toMatch(
+            /env\.template:2\s+myapp:dev:DB_HOST\s+->\s+myapp:dev:DB_HOST/
+        )
+        expect(result.stderr).toContain(
+            'Found 1 duplicate key in env.template'
+        )
+        expect(fs.existsSync(path.join(work_dir, '.env'))).toBe(false)
+    })
+
+    it('reports every vault match for a duplicate from one glob line', () => {
+        for (const app of ['app1', 'app2']) {
+            run_command([
+                'add', 'key', 'TOKEN', `value-${app}`,
+                '--app', app, '--env', 'dev',
+            ], { vault_dir: tmp_dir })
+        }
+
+        // One template line matches TOKEN in two apps
+        fs.writeFileSync(
+            path.join(work_dir, 'env.template'),
+            '# comment\n:dev:TOKEN\n',
+        )
+
+        const result = run_command([
+            'env',
+        ], { vault_dir: tmp_dir, cwd: work_dir })
+
+        expect(result.exit_code).not.toBe(0)
+        expect(result.stderr).toContain('Duplicate key: TOKEN')
+        expect(result.stderr).toMatch(
+            /env\.template:2\s+:dev:TOKEN\s+->\s+app1:dev:TOKEN/
+        )
+        expect(result.stderr).toMatch(
+            /env\.template:2\s+:dev:TOKEN\s+->\s+app2:dev:TOKEN/
+        )
+        expect(result.stderr).toContain('not creating .env file')
+        expect(fs.existsSync(path.join(work_dir, '.env'))).toBe(false)
     })
 
     it('fails without env.template', () => {

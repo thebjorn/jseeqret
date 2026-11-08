@@ -46,6 +46,39 @@ function check_version(requirement, current_version) {
 }
 
 /**
+ * Print each duplicated .env key with the env.template lines and vault
+ * secrets (or constants) that produced it.
+ *
+ * @param {Map<string, {lineno: number, template_line: string,
+ *     origin: string}[]>} duplicates output key -> its sources
+ */
+function report_env_duplicates(duplicates) {
+    for (const [key, key_sources] of duplicates) {
+        console.error(`Duplicate key: ${key}`)
+        const width = Math.max(
+            ...key_sources.map(s => s.template_line.length)
+        )
+        for (const { lineno, template_line, origin } of key_sources) {
+            console.error(
+                `    env.template:${lineno}  `
+                + `${template_line.padEnd(width)}  ->  ${origin}`
+            )
+        }
+    }
+
+    const count = duplicates.size
+    const plural = count === 1 ? 'key' : 'keys'
+    console.error(
+        `\nFound ${count} duplicate ${plural} in env.template`
+        + ' (not creating .env file)'
+    )
+    console.error(
+        'Narrow the filters (e.g. app:env:KEY), or give one of them'
+        + ' a different name with NAME=app:env:KEY.'
+    )
+}
+
+/**
  * Materialize an `.env` file in the current directory from an
  * `env.template` driver file. Template entries can be raw filter specs,
  * `OUTPUT_NAME=filter` renames, `NAME=value` constants, or
@@ -76,10 +109,21 @@ export const env_command = new Command('env')
 
         const storage = new SqliteStorage()
         const lines = fs.readFileSync(template_path, 'utf-8').split('\n')
-        const env_lines = []
-        const seen_keys = new Set()
+        // output key -> value, in template order (first match wins)
+        const env_values = new Map()
+        // output key -> [{ lineno, template_line, origin }]
+        const sources = new Map()
 
-        for (const raw_line of lines) {
+        const add_entry = (key, get_value, lineno, template_line, origin) => {
+            if (!sources.has(key)) {
+                env_values.set(key, get_value())
+                sources.set(key, [])
+            }
+            sources.get(key).push({ lineno, template_line, origin })
+        }
+
+        for (const [i, raw_line] of lines.entries()) {
+            const lineno = i + 1
             const line = raw_line.trim()
             if (!line || line.startsWith('#')) continue
 
@@ -116,13 +160,9 @@ export const env_command = new Command('env')
                     // (e.g. URL="http://localhost:5176"); the quotes are
                     // stripped since the output adds its own.
                     const value = quoted ? rhs.slice(1, -1) : rhs
-                    if (seen_keys.has(name)) {
-                        console.error(`Error: Duplicate key '${name}' in env.template`)
-                        process.exit(1)
-                    }
-                    seen_keys.add(name)
-                    env_lines.push(`${name}="${value}"`)
-                    console.log(`  ${name}`)
+                    add_entry(
+                        name, () => value, lineno, line, 'constant value'
+                    )
                     continue
                 }
                 // Rename syntax: OUTPUT_NAME=app:env:key
@@ -134,16 +174,28 @@ export const env_command = new Command('env')
             const secrets = await storage.fetch_secrets(fspec.to_filter_dict())
 
             for (const secret of secrets) {
-                const key = output_name || secret.key
-                if (seen_keys.has(key)) {
-                    console.error(`Error: Duplicate key '${key}' in env.template`)
-                    process.exit(1)
-                }
-                seen_keys.add(key)
-                const value = secret.get_value()
-                env_lines.push(`${key}="${value}"`)
-                console.log(`  ${key}`)
+                add_entry(
+                    output_name || secret.key,
+                    () => secret.get_value(),
+                    lineno,
+                    line,
+                    `${secret.app}:${secret.env}:${secret.key}`,
+                )
             }
+        }
+
+        const duplicates = new Map(
+            [...sources].filter(([, key_sources]) => key_sources.length > 1)
+        )
+        if (duplicates.size > 0) {
+            report_env_duplicates(duplicates)
+            process.exit(1)
+        }
+
+        const env_lines = []
+        for (const [key, value] of env_values) {
+            env_lines.push(`${key}="${value}"`)
+            console.log(`  ${key}`)
         }
 
         if (env_lines.length === 0) {
