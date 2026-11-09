@@ -1,6 +1,6 @@
 {
   "name": "jseeqret",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "type": "module",
   "description": "Secure secrets manager - JavaScript/Electron/Svelte5 port of seeqret",
   "author": "thebjorn",
