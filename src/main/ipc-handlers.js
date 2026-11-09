@@ -433,7 +433,9 @@ export function register_ipc_handlers() {
         })
         log_info(`secrets:receive-slack imported ${r.imported} secret(s)`
             + (r.needs_resolution
-                ? ` (${r.conflicts.length} conflict(s) pending)` : ''))
+                ? ` (${r.conflicts.length} conflict(s) pending)` : '')
+            + (r.undecryptable.length
+                ? ` (${r.undecryptable.length} blob(s) not for this vault)` : ''))
         return r
     })
 

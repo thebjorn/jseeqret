@@ -20,7 +20,7 @@ import {
     generate_symmetric_key,
     generate_and_save_key_pair,
 } from '../src/core/crypto/utils.js'
-import { encode_key } from '../src/core/crypto/nacl.js'
+import { encode_key, generate_key_pair } from '../src/core/crypto/nacl.js'
 import { bind_slack_handle } from '../src/core/slack/identity.js'
 import { MESSAGE_KINDS } from '../src/core/serializers/envelope.js'
 import { JsonCryptSerializer } from '../src/core/serializers/json-crypt.js'
@@ -238,6 +238,47 @@ describe('receive_secrets', () => {
         // Cursor advanced past the imported blob only, so the conflicted
         // one is seen again next call.
         expect(await cursor()).toBe(first.file_ts)
+    })
+
+    it('skips a blob encrypted for another vault on the same Slack account (regression)', async () => {
+        // Bob's other device ("bob@laptop") posts as the same Slack user,
+        // so a blob alice encrypted for it lands in this vault's inbox
+        // too. Receive used to throw "NaCl decryption failed" on it, and
+        // since the cursor never moved, every later receive failed too.
+        const laptop_kp = generate_key_pair()
+        const laptop_user = new User(
+            'bob@laptop', 'bob@test.com', encode_key(laptop_kp.publicKey)
+        )
+        const ser = new JsonCryptSerializer({
+            sender: alice_user,
+            receiver: laptop_user,
+            sender_private_key: alice_kp.secretKey,
+        })
+        const for_laptop = await send_blob({
+            client: ws.client('U_ALICE'),
+            channel_id: CHANNEL,
+            recipient_slack_user_id: 'U_BOB',
+            ciphertext: ser.dumps([new Secret({
+                app: 'myapp', env: 'prod', key: 'LAPTOP_ONLY',
+                plaintext_value: 'x', vault_dir: alice_dir,
+            })]),
+        })
+        await alice_sends([
+            { app: 'myapp', env: 'prod', key: 'DB_PASS', plaintext_value: 's3cret' },
+        ])
+
+        const r = await bob_receives()
+
+        expect(r.imported).toBe(1)
+        expect(await bob_value('DB_PASS')).toBe('s3cret')
+        expect(await bob_value('LAPTOP_ONLY')).toBeNull()
+        expect(r.undecryptable).toEqual([{
+            file_ts: for_laptop.file_ts,
+            sender: 'alice@host',
+            to: 'bob@laptop',
+        }])
+        // Left on Slack for the device it was encrypted for.
+        expect(ws.files[for_laptop.file_id]).toBeDefined()
     })
 
     it('rejects a blob from an unlinked Slack sender (fail closed)', async () => {

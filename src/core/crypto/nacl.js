@@ -13,6 +13,18 @@ const { decodeBase64, encodeBase64, decodeUTF8, encodeUTF8 } = pkg
 import { createHash } from 'crypto'
 
 /**
+ * A NaCl box failed to open: the ciphertext was not made with this
+ * (receiver private key, sender public key) pair, or it was tampered
+ * with. The two cases cannot be told apart.
+ */
+export class DecryptionError extends Error {
+    constructor() {
+        super('NaCl decryption failed: invalid ciphertext or wrong keys')
+        this.name = 'DecryptionError'
+    }
+}
+
+/**
  * Generate a new X25519 keypair.
  * @returns {{ publicKey: Uint8Array, secretKey: Uint8Array }}
  */
@@ -77,6 +89,7 @@ export function asymmetric_encrypt(plaintext, sender_private_key, recipient_publ
  * @param {Uint8Array} receiver_private_key - receiver's private key
  * @param {Uint8Array} sender_public_key - sender's public key
  * @returns {string} decrypted UTF-8 string
+ * @throws {DecryptionError} if the box does not open with these keys
  */
 export function asymmetric_decrypt(cipher_b64, receiver_private_key, sender_public_key) {
     const full_message = decodeBase64(cipher_b64)
@@ -85,7 +98,7 @@ export function asymmetric_decrypt(cipher_b64, receiver_private_key, sender_publ
 
     const decrypted = nacl.box.open(ciphertext, nonce, sender_public_key, receiver_private_key)
     if (!decrypted) {
-        throw new Error('NaCl decryption failed: invalid ciphertext or wrong keys')
+        throw new DecryptionError()
     }
 
     return encodeUTF8(decrypted)

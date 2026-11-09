@@ -12,6 +12,11 @@
  *  - A blob whose sender cannot be matched to a locally-linked user is
  *    an error (no silent skip) so a targeted attack from the channel is
  *    noisy rather than silent.
+ *  - A blob that does not decrypt with this vault's key is skipped,
+ *    left on Slack, and reported in `undecryptable`. Every vault bound
+ *    to the same Slack account shares one inbox, so this is usually a
+ *    blob for another of the user's devices. (Throwing here wedged
+ *    receive for good: the cursor never moved past the blob.)
  *  - A blob that conflicts with local values writes NOTHING until the
  *    caller supplies per-secret `resolutions` or a fallback `strategy`.
  *    The walk stops at that blob: its thread stays on Slack and the
@@ -25,6 +30,7 @@ import { get_serializer } from '../serializers/index.js'
 import { MESSAGE_KINDS } from '../serializers/envelope.js'
 import { plan_secret_merge, apply_secret_merge, secret_id, describe_conflicts } from '../merge.js'
 import { trace } from '../trace.js'
+import { DecryptionError } from '../crypto/nacl.js'
 import { poll_envelopes, delete_thread, mark_stale } from './transport.js'
 import { SLACK_KEYS, slack_config_set } from './config.js'
 import { find_user_by_slack_handle } from './identity.js'
@@ -85,6 +91,7 @@ function max_ts(a, b) {
  *   kept: number, skipped: number,
  *   needs_resolution: boolean, conflicts: Array<object>,
  *   conflict_sender: string|null,
+ *   undecryptable: Array<{file_ts: string, sender: string, to: string|null}>,
  * }>}
  */
 export async function receive_secrets(storage, client, opts) {
@@ -98,6 +105,7 @@ export async function receive_secrets(storage, client, opts) {
     const totals = { imported: 0, added: 0, updated: 0, kept: 0, skipped: 0 }
     let highest_ts = oldest_ts
     let pending = null   // first unresolvable-conflict blob stops the walk
+    const undecryptable = []
 
     for await (const env of poll_envelopes({
         client, channel_id, self_user_id, oldest_ts, stats,
@@ -117,7 +125,24 @@ export async function receive_secrets(storage, client, opts) {
             sender,
             receiver_private_key,
         })
-        const secrets = serializer.load(JSON.stringify(env.payload))
+        let secrets
+        try {
+            secrets = serializer.load(JSON.stringify(env.payload))
+        } catch (e) {
+            if (!(e instanceof DecryptionError)) throw e
+            // Not encrypted for this vault's key. Leave the thread for
+            // the device that can open it; like the onboarding kinds
+            // above, an old one stops holding the cursor back.
+            trace(`receive: blob at ${env.file_ts} from ${sender.username}`
+                + ' does not decrypt with this vault\'s key, skipped')
+            undecryptable.push({
+                file_ts: env.file_ts,
+                sender: sender.username,
+                to: env.payload?.to ?? null,
+            })
+            mark_stale(stats, env.file_ts)
+            continue
+        }
 
         const plan = await plan_secret_merge(storage, secrets)
         const unresolved = plan.conflicts.filter(c =>
@@ -162,5 +187,6 @@ export async function receive_secrets(storage, client, opts) {
         needs_resolution: pending != null,
         conflicts: pending ? describe_conflicts(pending.conflicts) : [],
         conflict_sender: pending ? pending.sender.username : null,
+        undecryptable,
     }
 }

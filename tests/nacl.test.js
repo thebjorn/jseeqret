@@ -8,6 +8,7 @@ import {
     asymmetric_decrypt,
     hash_message,
     fingerprint,
+    DecryptionError,
 } from '../src/core/crypto/nacl.js'
 
 describe('NaCl crypto', () => {
@@ -56,9 +57,11 @@ describe('NaCl crypto', () => {
             const recipient = generate_key_pair()
             const wrong = generate_key_pair()
             const encrypted = asymmetric_encrypt('secret', sender.secretKey, recipient.publicKey)
-            expect(() => {
+            const attempt = () => {
                 asymmetric_decrypt(encrypted, wrong.secretKey, sender.publicKey)
-            }).toThrow('NaCl decryption failed')
+            }
+            expect(attempt).toThrow(DecryptionError)
+            expect(attempt).toThrow('NaCl decryption failed')
         })
 
         it('handles unicode', () => {

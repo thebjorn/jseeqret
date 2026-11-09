@@ -2,6 +2,7 @@
     let users = $state([])
     let error = $state(null)
     let success = $state(null)
+    let warning = $state(null)
     let importing = $state(false)
 
     let sender = $state('')
@@ -103,6 +104,7 @@
         importing = true
         error = null
         success = null
+        warning = null
 
         try {
             const result = await window.api.importSecrets({
@@ -141,9 +143,11 @@
         receiving = true
         error = null
         success = null
+        warning = null
 
         try {
             const r = await window.api.receiveSecretsSlack({ resolutions })
+            warning = undecryptable_warning(r.undecryptable)
             if (r.needs_resolution) {
                 conflict_source = 'slack'
                 conflicts = r.conflicts.map(c => ({
@@ -169,6 +173,16 @@
         } finally {
             receiving = false
         }
+    }
+
+    // Blobs on Slack this vault's key cannot open -- usually sent to
+    // another of your devices, since they all share one Slack inbox.
+    function undecryptable_warning(list) {
+        if (!list?.length) return null
+        const blobs = list.map(u => `${u.sender} → ${u.to || 'unknown'}`)
+        return `${list.length} blob(s) on Slack are not encrypted for this`
+            + ` vault's key (${blobs.join(', ')}). They were left on Slack`
+            + ' for the device they were sent to.'
     }
 
     function apply_resolutions() {
@@ -200,6 +214,9 @@
     {/if}
     {#if success}
         <div class="alert success">{success}</div>
+    {/if}
+    {#if warning}
+        <div class="alert warning">{warning}</div>
     {/if}
 
     {#if conflicts.length > 0}
@@ -453,6 +470,12 @@
         background: var(--success-dim);
         border: 1px solid var(--success);
         color: var(--success);
+    }
+
+    .alert.warning {
+        background: rgba(245, 176, 76, 0.12);
+        border: 1px solid var(--warning);
+        color: var(--warning);
     }
 
     .import-layout {

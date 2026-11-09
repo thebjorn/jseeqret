@@ -45,6 +45,14 @@ async function _run_once(storage, snap, strategy = null) {
         strategy,
     })
 
+    for (const u of r.undecryptable) {
+        console.error(
+            `warning: blob from ${u.sender} to ${u.to || 'unknown'}`
+            + ` (ts ${u.file_ts}) is not encrypted for this vault's key;`
+            + ' left on Slack for the device it was sent to.'
+        )
+    }
+
     if (r.needs_resolution) {
         const ids = r.conflicts.map(c => c.id)
         throw new Error(
