@@ -1,6 +1,6 @@
 # CHANGES — jseeqret vs seeqret differences
 
-This document lists the differences between **jseeqret** (JavaScript, 2.8)
+This document lists the differences between **jseeqret** (JavaScript, 3.0)
 and **seeqret** (Python, 2.0) to help keep the two projects synchronized.
 Both read and write the same vault, so the database schema, key files and
 encryption formats must stay identical (see the end of this file).
